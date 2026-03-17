@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Projects Directory</title>
+<link rel="stylesheet" href="style.css">
+<style>
+    /* Custom Grid for the Business Card Interface */
+    .projects-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        width: 100%;
+        max-width: 1000px;
+        margin-top: 20px;
+    }
+
+    .project-card {
+        /* Inherits from your .footer-block, with added hover effects */
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        justify-content: space-between;
+    }
+
+    .project-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.8);
+        border-color: #555;
+    }
+
+    .project-card h2 {
+        margin: 0 0 10px 0;
+        color: #fff;
+        font-size: 20px;
+    }
+
+    .project-card p {
+        color: #ccc;
+        font-size: 14px;
+        line-height: 1.5;
+        margin: 0 0 20px 0;
+    }
+</style>
+</head>
+<body>
+
+<header class="top-header">
+    <div class="header-left">
+    </div>
+    
+    <div class="header-titles">
+        <h1>Margath's</h1>
+        <p>Development Hub & Project Directory</p>
+    </div>
+    
+    <div class="header-right">
+    </div>
+</header>
+
+<div class="content-wrapper">
+    <main class="main">
+        
+        <div class="projects-grid">
+            
+            <div class="footer-block project-card">
+                <div>
+                    <h2>Tri-Fold Standees</h2>
+                    <p>A comprehensive web application for generating printable trifold paper miniatures. Features a real-time editor, dark-mode UI, and stat tracking for tabletop encounters.</p>
+                </div>
+                <button class="primary" onclick="window.location.href='https://trifold.gameportal.win/'">Launch App</button>
+            </div>
+            
+            <div class="footer-block project-card">
+                <div>
+                    <h2>Initiative Standees (beta)</h2>
+                    <p>A comprehensive web application for generating free-standing (or DM screen tent) printable initiative tracking items for tabletop encounters.</p>
+                </div>
+                <button class="primary" onclick="window.location.href='https://init-tents.gameportal.win/'">Launch App</button>
+            </div>
+
+            <div class="footer-block project-card">
+                <div>
+                    <h2>Traveller 5e Toolkit (in Ideation)</h2>
+                    <p>A suite of utilities and scripts designed to streamline character creation and automate sector mapping for the Traveller role-playing game.</p>
+                </div>
+                <button class="primary word-btn" onclick="window.location.href='#'">View Repository</button>
+            </div>
+
+            <div class="footer-block project-card">
+                <div>
+                    <h2>The X Factor / More Feats!</h2>
+                    <p>Two optional tweaks for getting more feats in your player's hands!</p>
+                </div>
+                <button class="primary" target="_blank" onclick="window.location.href='https://homebrewery.naturalcrit.com/share/rS9ggBRGFQz_'">Open HomeBrew</button>
+            </div>
+
+            <div class="footer-block project-card">
+                <div>
+                    <h2>The X Factor / More Feats!</h2>
+                    <p>Two optional tweaks for getting more feats in your player's hands!</p>
+                </div>
+                <button class="primary" target="_blank" onclick="window.location.href='https://homebrewery.naturalcrit.com/share/rS9ggBRGFQz_'">Open HomeBrew</button>
+            </div>
+
+            <div class="footer-block project-card">
+                <div>
+                    <h2>Traveller 5e Toolkit (in Ideation)</h2>
+                    <p>A suite of utilities and scripts designed to streamline character creation and automate sector mapping for the Traveller role-playing game.</p>
+                </div>
+                <button class="primary word-btn" onclick="window.location.href='#'">View Repository</button>
+            </div>
+
+            <div class="footer-block project-card">
+                <div>
+                    <h2>Programming Sandbox</h2>
+                    <p>A live environment for testing out new scripts, programming language explorations, and managing various backend technology workflows.</p>
+                </div>
+                <button class="secondary" onclick="window.location.href='#'">Browse Code</button>
+            </div>
+
+        </div>
+<!-- <div class="subcards-section">
+    <h3>Connect</h3>
+    <div class="subcard-grid">
+        
+        <a href="https://github.com/margath" class="subcard github-card" target="_blank">
+            <div class="subcard-icon">G</div>
+            <div class="subcard-content">
+                <h4>GitHub</h4>
+                <p>@margath</p>
+            </div>
+        </a>
+
+        <a href="https://linkedin.com/" class="subcard linkedin-card" target="_blank">
+            <div class="subcard-icon">in</div>
+            <div class="subcard-content">
+                <h4>LinkedIn</h4>
+                <p>Let's Connect</p>
+            </div>
+        </a>
+
+        <a href="mailto:email@example.com" class="subcard email-card">
+            <div class="subcard-icon">✉</div>
+            <div class="subcard-content">
+                <h4>Email</h4>
+                <p>Drop me a line</p>
+            </div>
+        </a>
+
+    </div>
+</div> -->
+
+    </main>
+</div>
+
+<footer class="credits-footer">
+    <div class="footer-col">
+        <div class="credits-box">
+            <h3>Connect</h3>
+            <div style="display: flex; gap: 15px; margin-top: 10px;">
+                <a href="#">LinkedIn</a>
+                <a href="#">GitHub</a>
+                <a href="#">Twitter</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer-col">
+        <div class="credits-box">
+            <h3>About This Page</h3>
+            <p style="margin: 10px 0;">A centralized directory exploring the intersection of technology, programming, and tabletop adventures.</p>
+            <div class="gemini-charm">Maintained by <span>Your Name</span></div>
+        </div>
+    </div>
+</footer>
+
+</body>
+</html>

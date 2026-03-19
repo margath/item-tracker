@@ -1,255 +1,575 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Projects Directory</title>
-<link rel="stylesheet" href="style.css">
-<style>
-    /* Custom Grid for the Business Card Interface */
-    .projects-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 20px;
-        width: 100%;
-        max-width: 1000px;
-        margin-top: 20px;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Party Loot Tracker (Cloud Edition)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif; margin: 0;
+            background-color: #1e1e24; color: #e0e0e0; display: flex;
+            flex-direction: column; min-height: 100vh;
+        }
 
-    .project-card {
-        /* Inherits from your .footer-block, with added hover effects */
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        justify-content: space-between;
-    }
+        /* Modals & Overlays */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(30, 30, 36, 0.95); z-index: 1000; display: flex;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+        .modal-box {
+            background: #2a2a35; padding: 30px; border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #444;
+            width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto;
+        }
+        .modal-box h2 { margin-top: 0; color: #fff; border-bottom: 1px solid #555; padding-bottom: 10px; }
+        .modal-box input, .modal-box select, .modal-box textarea {
+            width: 100%; padding: 10px; margin: 10px 0; border-radius: 4px;
+            border: 1px solid #555; background: #1e1e24; color: white;
+            box-sizing: border-box; font-family: inherit;
+        }
+        .setup-steps li { margin-bottom: 10px; line-height: 1.4; color: #ccc;}
+        .setup-steps strong { color: #3498db; }
 
-    .project-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.8);
-        border-color: #555;
-    }
+        /* Top Bar */
+        header {
+            background: #2b2b36; padding: 15px 30px; display: flex;
+            justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4); border-bottom: 2px solid #444;
+        }
+        header h1 { margin: 0; font-size: 20px; color: #fff; }
+        .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap;}
+        .user-info { font-size: 14px; color: #aaa; margin-right: 10px; }
+        .user-info span { font-weight: bold; color: #3498db; }
 
-    .project-card h2 {
-        margin: 0 0 10px 0;
-        color: #fff;
-        font-size: 20px;
-    }
+        /* Buttons */
+        button {
+            background: #3498db; color: white; border: none; padding: 8px 12px; 
+            border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;
+        }
+        button:hover:not(:disabled) { background: #2980b9; }
+        button:disabled { background: #555; color: #888; cursor: not-allowed; }
+        
+        button.add-btn { background: #2ecc71; }
+        button.add-btn:hover:not(:disabled) { background: #27ae60; }
+        button.del-btn { background: #e74c3c; padding: 6px 10px; font-size: 12px;}
+        button.del-btn:hover:not(:disabled) { background: #c0392b; }
+        button.save-btn { background: #9b59b6; }
+        button.save-btn:hover:not(:disabled) { background: #8e44ad; }
+        button.load-btn { background: #f39c12; }
+        button.load-btn:hover:not(:disabled) { background: #d35400; }
+        button.setup-btn { background: #7f8c8d; }
+        button.setup-btn:hover { background: #636e72; }
+        
+        .dm-toggle-btn { background: #34495e; display: flex; align-items: center; gap: 6px; }
+        .dm-toggle-btn.unlocked { background: #e67e22; }
 
-    .project-card p {
-        color: #ccc;
-        font-size: 14px;
-        line-height: 1.5;
-        margin: 0 0 20px 0;
-    }
-/* --- PAGE CURL EFFECT --- */
-.page-curl {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 65px;
-    height: 65px;
-    z-index: 10000; /* Ensures it sits above your header */
-    transition: width 0.3s ease, height 0.3s ease;
-    text-decoration: none;
-    /* Applies a shadow to the custom clipped shapes */
-    filter: drop-shadow(-3px 3px 6px rgba(0,0,0,0.5)); 
-}
+        /* Main Grid */
+        main {
+            padding: 30px; display: grid; gap: 25px; flex-grow: 1;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            align-content: start;
+        }
 
-.page-curl:hover {
-    width: 140px;
-    height: 140px;
-}
+        /* Loot Card */
+        .loot-card {
+            background: #2a2a35; border-radius: 10px; overflow: hidden;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.3); border: 1px solid #444;
+            display: flex; flex-direction: column; position: relative;
+        }
+        .loot-card.identified { border-color: #f1c40f; }
 
-/* The colorful layer hiding underneath */
-.curl-reveal {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 100%;
-    height: 100%;
-    background: #3498db; /* Uses your primary button blue */
-    /* Slices the div into a top-right triangle */
-    clip-path: polygon(0 0, 100% 0, 100% 100%);
-    transition: background 0.3s ease;
-}
+        .image-container {
+            width: 100%; height: 200px; background: #111; display: flex;
+            justify-content: center; align-items: center; overflow: hidden;
+            border-bottom: 1px solid #444; position: relative;
+        }
+        .image-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .image-placeholder { color: #666; font-size: 14px; }
 
-.page-curl:hover .curl-reveal {
-    background: #2980b9; /* Darkens slightly on hover */
-}
+        .card-content { padding: 15px; display: flex; flex-direction: column; gap: 10px; flex-grow: 1; }
+        .item-title { font-size: 20px; font-weight: bold; margin: 0; color: #fff; }
+        .true-name-reveal { font-size: 12px; color: #f1c40f; margin-top: -6px; font-style: italic; }
 
-/* The text inside the fold */
-.curl-reveal span {
-    position: absolute;
-    top: 10px;
-    right: 5px;
-    color: white;
-    font-weight: bold;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    transform: rotate(45deg);
-    opacity: 0;
-    transition: opacity 0.2s ease, top 0.3s ease, right 0.3s ease, font-size 0.3s ease;
-}
+        .badges { display: flex; flex-wrap: wrap; gap: 6px; }
+        .badge { background: #444; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; color: #ddd; }
+        .badge.attunement { background: #8e44ad; color: white; }
+        .badge.owner { background: #2980b9; color: white; }
+        .badge.keeper { background: #e67e22; color: white; }
+        
+        .description-box {
+            background: #1e1e24; padding: 10px; border-radius: 6px;
+            font-size: 13px; line-height: 1.5; color: #ccc; border: 1px solid #333; flex-grow: 1;
+        }
+        .hidden-text { color: #777; font-style: italic; text-align: center; padding: 10px 0; }
 
-.page-curl:hover .curl-reveal span {
-    opacity: 1;
-    top: 45px;
-    right: 20px;
-    font-size: 18px;
-}
-
-/* The "back" of the folded paper */
-.curl-flap {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 100%;
-    height: 100%;
-    /* Dark gradient to simulate lighting on the back of the peel */
-    background: linear-gradient(135deg, #555 0%, #222 100%); 
-    /* Slices the div into the opposing bottom-left triangle */
-    clip-path: polygon(0 0, 100% 100%, 0 100%);
-    border-bottom-left-radius: 6px; /* Softens the sharp folded tip */
-}
-    
-</style>
+        /* Edit Form Overlay */
+        .edit-form {
+            display: none; flex-direction: column; gap: 10px; background: #2a2a35; padding: 15px;
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 10; overflow-y: auto;
+        }
+        .edit-form.active { display: flex; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 11px; font-weight: bold; color: #aaa; text-transform: uppercase; }
+        .form-group input[type="text"], .form-group textarea, .form-group select {
+            background: #1e1e24; border: 1px solid #555; color: white;
+            padding: 8px; border-radius: 4px; font-family: inherit;
+        }
+        .form-group input:disabled, .form-group textarea:disabled { color: #777; border-color: #333; }
+        .form-group textarea { resize: vertical; min-height: 60px; }
+        .form-row { display: flex; gap: 10px; }
+        .form-row > div { flex: 1; }
+        .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #ddd;}
+        .card-actions { 
+            display: flex; justify-content: space-between; align-items: center;
+            padding-top: 10px; border-top: 1px dashed #444; margin-top: auto;
+        }
+    </style>
 </head>
 <body>
-<a href="tools.html" class="page-curl" aria-label="Game Tools">
-    <div class="curl-reveal">
-        <span>Tools</span>
-    </div>
-    <div class="curl-flap"></div>
-</a>
-<header class="top-header">
-    <div class="header-left">
-    </div>
-    
-    <div class="header-titles">
-        <h1>Margath's</h1>
-        <p>Development Hub & Project Directory</p>
-    </div>
-    
-    <div class="header-right">
-    </div>
-</header>
 
-<div class="content-wrapper">
-    <main class="main">
-        
-        <div class="projects-grid">
+    <div id="login-screen" class="modal-overlay">
+        <div class="modal-box" style="text-align: center; width: 300px;">
+            <h2>Select Player</h2>
+            <select id="login-name"></select>
+            <input type="password" id="login-pin" placeholder="Enter PIN">
+            <button onclick="handleLogin()" style="width: 100%; margin-top: 10px;">Enter Session</button>
+        </div>
+    </div>
+
+    <div id="setup-screen" class="modal-overlay" style="display: none;">
+        <div class="modal-box">
+            <h2>⚙️ Cloud Backend Setup</h2>
+            <p style="font-size: 13px; color: #ccc;">To save data across devices, you need a Google Apps Script to act as your database. Follow these steps:</p>
+            <ol class="setup-steps" style="font-size: 13px;">
+                <li>Create a new <a href="https://sheets.new" target="_blank" style="color:#3498db;">Google Sheet</a>.</li>
+                <li>In the top menu, click <strong>Extensions > Apps Script</strong>.</li>
+                <li>Delete the default code and paste the script from the box below.</li>
+                <li>Click <strong>Deploy > New deployment</strong>.</li>
+                <li>Select type <strong>Web app</strong>. Set 'Execute as' to <strong>Me</strong> and 'Who has access' to <strong>Anyone</strong>.</li>
+                <li>Click Deploy, Authorize the permissions, and copy the <strong>Web app URL</strong>.</li>
+                <li>Paste that URL into the input field below!</li>
+            </ol>
             
-            <div class="footer-block project-card">
-                <div>
-                    <h2>Tri-Fold Standees</h2>
-                    <p>A comprehensive web application for generating printable trifold paper miniatures. Features a real-time editor, dark-mode UI, and stat tracking for tabletop encounters.</p>
-                </div>
-                <button class="primary" onclick="window.location.href='https://trifold.gameportal.win/'">Launch App</button>
+            <textarea readonly style="height: 120px; font-family: monospace; font-size: 11px; white-space: pre;" onclick="this.select()">
+const SHEET_NAME = "LootData"; const FOLDER_NAME = "Party_Loot_Images";
+function getOrCreateFolder() { const f = DriveApp.getFoldersByName(FOLDER_NAME); return f.hasNext() ? f.next() : DriveApp.createFolder(FOLDER_NAME); }
+function doGet(e) {
+  try { const s = SpreadsheetApp.getActive().getSheetByName(SHEET_NAME);
+    return ContentService.createTextOutput(s ? (s.getRange("A1").getValue() || "[]") : "[]").setMimeType(ContentService.MimeType.JSON);
+  } catch (err) { return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON); }
+}
+function doPost(e) {
+  try { const p = JSON.parse(e.postData.contents);
+    if (p.action === 'uploadImage') {
+      const f = getOrCreateFolder(), b = Utilities.newBlob(Utilities.base64Decode(p.base64), p.mimeType, p.fileName);
+      const file = f.createFile(b); file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      return ContentService.createTextOutput(JSON.stringify({ url: "https://drive.google.com/uc?id=" + file.getId() })).setMimeType(ContentService.MimeType.JSON);
+    }
+    if (p.action === 'saveData') {
+      let s = SpreadsheetApp.getActive().getSheetByName(SHEET_NAME); if (!s) s = SpreadsheetApp.getActive().insertSheet(SHEET_NAME);
+      s.clear(); s.getRange("A1").setValue(JSON.stringify(p.data));
+      return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch (err) { return ContentService.createTextOutput(JSON.stringify({ error: err.toString() })).setMimeType(ContentService.MimeType.JSON); }
+}
+            </textarea>
+            
+            <div style="margin-top: 15px; border-top: 1px dashed #555; padding-top: 15px;">
+                <label style="font-size: 12px; font-weight: bold; color: #aaa;">Your Web App URL:</label>
+                <input type="text" id="script-url-input" placeholder="https://script.google.com/macros/s/...">
             </div>
             
-            <div class="footer-block project-card">
-                <div>
-                    <h2>Initiative Standees (beta)</h2>
-                    <p>A comprehensive web application for generating free-standing (or DM screen tent) printable initiative tracking items for tabletop encounters.</p>
-                </div>
-                <button class="primary" onclick="window.location.href='https://init-tents.gameportal.win/'">Launch App</button>
-            </div>
-
-            <div class="footer-block project-card">
-                <div>
-                    <h2>Traveller 5e Toolkit (in Ideation)</h2>
-                    <p>A suite of utilities and scripts designed to streamline character creation and automate sector mapping for the Traveller role-playing game.</p>
-                </div>
-                <button class="primary word-btn" onclick="window.location.href='#'">View Repository</button>
-            </div>
-
-            <div class="footer-block project-card">
-                <div>
-                    <h2>The X Factor / More Feats!</h2>
-                    <p>Two optional tweaks for getting more feats in your player's hands!</p>
-                </div>
-                <button class="primary" target="_blank" onclick="window.location.href='https://homebrewery.naturalcrit.com/share/rS9ggBRGFQz_'">Open HomeBrew</button>
-            </div>
-
-            <div class="footer-block project-card">
-                <div>
-                    <h2>The X Factor / More Feats!</h2>
-                    <p>Two optional tweaks for getting more feats in your player's hands!</p>
-                </div>
-                <button class="primary" target="_blank" onclick="window.location.href='https://homebrewery.naturalcrit.com/share/rS9ggBRGFQz_'">Open HomeBrew</button>
-            </div>
-
-            <div class="footer-block project-card">
-                <div>
-                    <h2>Traveller 5e Toolkit (in Ideation)</h2>
-                    <p>A suite of utilities and scripts designed to streamline character creation and automate sector mapping for the Traveller role-playing game.</p>
-                </div>
-                <button class="primary word-btn" onclick="window.location.href='#'">View Repository</button>
-            </div>
-
-            <div class="footer-block project-card">
-                <div>
-                    <h2>Programming Sandbox</h2>
-                    <p>A live environment for testing out new scripts, programming language explorations, and managing various backend technology workflows.</p>
-                </div>
-                <button class="secondary" onclick="window.location.href='#'">Browse Code</button>
-            </div>
-
-        </div>
-<!-- <div class="subcards-section">
-    <h3>Connect</h3>
-    <div class="subcard-grid">
-        
-        <a href="https://github.com/margath" class="subcard github-card" target="_blank">
-            <div class="subcard-icon">G</div>
-            <div class="subcard-content">
-                <h4>GitHub</h4>
-                <p>@margath</p>
-            </div>
-        </a>
-
-        <a href="https://linkedin.com/" class="subcard linkedin-card" target="_blank">
-            <div class="subcard-icon">in</div>
-            <div class="subcard-content">
-                <h4>LinkedIn</h4>
-                <p>Let's Connect</p>
-            </div>
-        </a>
-
-        <a href="mailto:email@example.com" class="subcard email-card">
-            <div class="subcard-icon">✉</div>
-            <div class="subcard-content">
-                <h4>Email</h4>
-                <p>Drop me a line</p>
-            </div>
-        </a>
-
-    </div>
-</div> -->
-
-    </main>
-</div>
-
-<footer class="credits-footer">
-    <div class="footer-col">
-        <div class="credits-box">
-            <h3>Connect</h3>
-            <div style="display: flex; gap: 15px; margin-top: 10px;">
-                <a href="#">LinkedIn</a>
-                <a href="#">GitHub</a>
-                <a href="#">Twitter</a>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+                <button style="background: #555;" onclick="closeSetup()">Cancel</button>
+                <button class="add-btn" onclick="saveSetup()">Save Configuration</button>
             </div>
         </div>
     </div>
-    
-    <div class="footer-col">
-        <div class="credits-box">
-            <h3>About This Page</h3>
-            <p style="margin: 10px 0;">A centralized directory exploring the intersection of technology, programming, and tabletop adventures.</p>
-            <div class="gemini-charm">Maintained by <span>Your Name</span></div>
-        </div>
-    </div>
-</footer>
 
+    <div id="app-workspace" style="display: none; flex-direction: column; min-height: 100vh;">
+        <header>
+            <h1>Party Loot Tracker</h1>
+            <div class="header-controls">
+                <div class="user-info">Logged in as: <span id="display-user-name"></span></div>
+                
+                <button id="add-btn-header" class="add-btn" style="display: none;" onclick="addNewItem()">+ Add Item</button>
+                <button id="dm-toggle-btn" class="dm-toggle-btn" onclick="toggleDmMode()">🔒 Act as DM</button>
+                <button class="save-btn" onclick="saveToCloud()" id="btn-save">💾 Save to Cloud</button>
+                <button class="load-btn" onclick="loadFromCloud()" id="btn-load">📥 Load Data</button>
+                <button class="setup-btn" onclick="openSetup()">⚙️ Setup</button>
+                <button style="background: #555;" onclick="handleLogout()">Logout</button>
+            </div>
+        </header>
+
+        <main id="loot-grid"></main>
+    </div>
+
+    <script>
+        // --- Configuration & State ---
+        const CAMPAIGN_KEY = "SecretDragonHoard2026"; 
+
+        const state = {
+            currentUser: null,
+            isDmMode: false,
+            scriptUrl: localStorage.getItem('lootTrackerScriptUrl') || "", // Loads saved URL
+            players: [
+                { name: "Alice", pin: "1111" },
+                { name: "Bob", pin: "2222" },
+                { name: "Charlie", pin: "3333" }
+            ],
+            items: []
+        };
+
+        const gridEl = document.getElementById('loot-grid');
+        const loginScreen = document.getElementById('login-screen');
+        const setupScreen = document.getElementById('setup-screen');
+        const appWorkspace = document.getElementById('app-workspace');
+
+        // --- Initialization ---
+        window.onload = () => {
+            const select = document.getElementById('login-name');
+            state.players.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name; opt.innerText = p.name;
+                select.appendChild(opt);
+            });
+            document.getElementById('script-url-input').value = state.scriptUrl;
+        };
+
+        // --- Setup / Config ---
+        function openSetup() { setupScreen.style.display = 'flex'; }
+        function closeSetup() { setupScreen.style.display = 'none'; }
+        function saveSetup() {
+            state.scriptUrl = document.getElementById('script-url-input').value.trim();
+            localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
+            closeSetup();
+            alert("Cloud URL saved to this browser!");
+        }
+
+        // --- Authentication ---
+        function handleLogin() {
+            const name = document.getElementById('login-name').value;
+            const pin = document.getElementById('login-pin').value;
+            const user = state.players.find(p => p.name === name && p.pin === pin);
+            if (user) {
+                state.currentUser = user;
+                document.getElementById('display-user-name').innerText = user.name;
+                document.getElementById('login-pin').value = ''; 
+                loginScreen.style.display = 'none';
+                appWorkspace.style.display = 'flex';
+                renderAll();
+                
+                // Auto-load if URL exists
+                if(state.scriptUrl) loadFromCloud(); 
+            } else {
+                alert("Incorrect PIN.");
+            }
+        }
+
+        function handleLogout() {
+            state.currentUser = null; state.isDmMode = false;
+            appWorkspace.style.display = 'none'; loginScreen.style.display = 'flex';
+        }
+
+        function toggleDmMode() {
+            if (state.isDmMode) {
+                state.isDmMode = false;
+                state.items.forEach(item => item.isEditing = false);
+            } else {
+                const pinCheck = prompt(`Enter PIN for ${state.currentUser.name} to unlock DM Mode:`);
+                if (pinCheck === state.currentUser.pin) { state.isDmMode = true; } 
+                else if (pinCheck !== null) { alert("Incorrect PIN."); }
+            }
+            renderAll();
+        }
+
+        // --- Multi-DM Cryptography ---
+        function getDisplayText(text, keeperName) {
+            if (!text || !text.startsWith("ENC::")) return text; 
+            if (!state.isDmMode) return "🔒 [Item Unidentified]";
+            if (state.currentUser.name !== keeperName) return `🔒 [Secret kept by ${keeperName}]`;
+            try {
+                const key = CAMPAIGN_KEY + "_" + state.currentUser.pin;
+                const bytes = CryptoJS.AES.decrypt(text.replace("ENC::", ""), key);
+                return bytes.toString(CryptoJS.enc.Utf8) || `🔒 [Decryption Failed]`;
+            } catch(e) { return `🔒 [Encryption Error]`; }
+        }
+
+        function getEditableText(text, keeperName) {
+            if (!text || !text.startsWith("ENC::")) return text;
+            if (state.currentUser.name !== keeperName) return `🔒 Encrypted by ${keeperName}`;
+            try {
+                const key = CAMPAIGN_KEY + "_" + state.currentUser.pin;
+                return CryptoJS.AES.decrypt(text.replace("ENC::", ""), key).toString(CryptoJS.enc.Utf8);
+            } catch(e) { return ""; }
+        }
+
+        // --- Cloud Syncing (Google Apps Script API) ---
+        async function saveToCloud() {
+            if (!state.scriptUrl) return alert("Please set up your Cloud URL in '⚙️ Setup' first.");
+            
+            const btn = document.getElementById('btn-save');
+            btn.innerText = "⏳ Saving..."; btn.disabled = true;
+
+            const secureData = state.items.map(item => {
+                if (item.isIdentified) return { ...item, isEditing: false };
+                let outTrueName = item.trueName; let outDesc = item.description;
+                
+                if (!outTrueName.startsWith("ENC::")) {
+                    const key = CAMPAIGN_KEY + "_" + state.currentUser.pin;
+                    outTrueName = "ENC::" + CryptoJS.AES.encrypt(outTrueName, key).toString();
+                }
+                if (!outDesc.startsWith("ENC::")) {
+                    const key = CAMPAIGN_KEY + "_" + state.currentUser.pin;
+                    outDesc = "ENC::" + CryptoJS.AES.encrypt(outDesc, key).toString();
+                }
+                return { ...item, isEditing: false, trueName: outTrueName, description: outDesc };
+            });
+
+            try {
+                const response = await fetch(state.scriptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: 'saveData', data: secureData })
+                });
+                const res = await response.json();
+                if (res.status === "success") { alert("Encrypted Data Saved to Google Sheets!"); }
+            } catch(e) { alert("Failed to save. Check your App Script URL."); console.error(e); }
+            
+            btn.innerText = "💾 Save to Cloud"; btn.disabled = false; renderAll();
+        }
+
+        async function loadFromCloud() {
+            if (!state.scriptUrl) return; // Silent fail on auto-load
+            const btn = document.getElementById('btn-load');
+            btn.innerText = "⏳ Loading..."; btn.disabled = true;
+
+            try {
+                const response = await fetch(state.scriptUrl);
+                const data = await response.json();
+                if (Array.isArray(data)) {
+                    state.items = data;
+                }
+            } catch(e) { console.error("Load error:", e); }
+            
+            btn.innerText = "📥 Load Data"; btn.disabled = false; renderAll();
+        }
+
+        // --- Image Uploading ---
+        async function handleImageUpload(itemId, fileInput) {
+            if (!state.scriptUrl) return alert("Please set up your Cloud URL first to upload images.");
+            const file = fileInput.files[0]; if (!file) return;
+
+            // Find the button label to show progress
+            const labelBtn = fileInput.parentElement;
+            const originalText = labelBtn.innerHTML;
+            labelBtn.innerHTML = "⏳ Uploading...";
+            labelBtn.style.background = "#e67e22";
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const base64Data = e.target.result.split(',')[1];
+                const payload = { action: 'uploadImage', fileName: file.name, mimeType: file.type, base64: base64Data };
+                
+                try {
+                    const response = await fetch(state.scriptUrl, {
+                        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify(payload)
+                    });
+                    const res = await response.json();
+                    if (res.url) {
+                        updateItem(itemId, 'imageUrl', res.url);
+                        labelBtn.style.background = "#2ecc71";
+                        labelBtn.innerHTML = "✅ Done";
+                        setTimeout(() => renderAll(), 1000);
+                    }
+                } catch(err) {
+                    labelBtn.style.background = "#e74c3c";
+                    labelBtn.innerHTML = "❌ Failed";
+                    console.error(err);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- Item Management ---
+        function addNewItem() {
+            state.items.unshift({
+                id: Date.now(),
+                isIdentified: false,
+                apparentName: "New Mysterious Item",
+                trueName: "", imageUrl: "", weight: "-", description: "",
+                requiresAttunement: false, owner: state.currentUser.name, 
+                secretKeeper: state.currentUser.name, 
+                isEditing: true 
+            });
+            renderAll();
+        }
+
+        function removeItem(id) {
+            const item = state.items.find(i => i.id === id);
+            if (item && item.secretKeeper !== state.currentUser.name && state.currentUser.name !== 'Party Stash') {
+                return alert(`Only ${item.secretKeeper} can delete this item.`);
+            }
+            if(confirm("Delete this item?")) {
+                state.items = state.items.filter(item => item.id !== id);
+                renderAll();
+            }
+        }
+
+        function toggleEdit(id) {
+            const item = state.items.find(i => i.id === id);
+            if (item) { item.isEditing = !item.isEditing; renderAll(); }
+        }
+
+        function toggleIdentified(id) {
+            const item = state.items.find(i => i.id === id);
+            if (item && item.secretKeeper === state.currentUser.name) { 
+                item.isIdentified = !item.isIdentified; renderAll(); 
+            }
+        }
+
+        function updateItem(id, field, value) {
+            const item = state.items.find(i => i.id === id);
+            if (item) item[field] = value;
+        }
+
+        // --- Rendering Logic ---
+        function renderAll() {
+            const headerAddBtn = document.getElementById('add-btn-header');
+            const dmToggleBtn = document.getElementById('dm-toggle-btn');
+
+            if (state.isDmMode) {
+                headerAddBtn.style.display = 'block';
+                dmToggleBtn.innerHTML = '🔓 DM View Active';
+                dmToggleBtn.classList.add('unlocked');
+            } else {
+                headerAddBtn.style.display = 'none';
+                dmToggleBtn.innerHTML = '🔒 Act as DM';
+                dmToggleBtn.classList.remove('unlocked');
+            }
+
+            gridEl.innerHTML = '';
+            const rosterList = ["Party Stash", ...state.players.map(p => p.name)];
+
+            if (state.items.length === 0) {
+                gridEl.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #777;">No loot found. Act as DM and add some items!</div>`;
+                return;
+            }
+
+            state.items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `loot-card ${item.isIdentified ? 'identified' : ''}`;
+
+                const isKeeper = (state.currentUser.name === item.secretKeeper);
+                
+                let titleToShow = item.apparentName || "Unknown Item";
+                let subtitleHtml = "";
+                let descHtml = "";
+
+                if (item.isIdentified) {
+                    titleToShow = getDisplayText(item.trueName, item.secretKeeper) || item.apparentName;
+                    const plainDesc = getDisplayText(item.description, item.secretKeeper);
+                    descHtml = plainDesc ? plainDesc.replace(/\n/g, '<br>') : "";
+                } else if (state.isDmMode) {
+                    const plainTrueName = getDisplayText(item.trueName, item.secretKeeper);
+                    const plainDesc = getDisplayText(item.description, item.secretKeeper);
+                    subtitleHtml = `<div class="true-name-reveal">True Name: ${plainTrueName}</div>`;
+                    descHtml = plainDesc ? plainDesc.replace(/\n/g, '<br>') : "";
+                } else {
+                    descHtml = "<div class='hidden-text'>Item properties are unknown until identified.</div>";
+                }
+
+                const imgHtml = item.imageUrl 
+                    ? `<img src="${item.imageUrl}" alt="Item Image">` 
+                    : `<div class="image-placeholder">No Image URL</div>`;
+
+                const displayHtml = `
+                    <div class="image-container">${imgHtml}</div>
+                    <div class="card-content">
+                        <div><h3 class="item-title">${titleToShow}</h3>${subtitleHtml}</div>
+                        
+                        <div class="badges">
+                            <span class="badge owner">🎒 ${item.owner || 'Unclaimed'}</span>
+                            <span class="badge">⚖️ ${item.weight || '-'}</span>
+                            ${item.requiresAttunement ? '<span class="badge attunement">🔮 Requires Attunement</span>' : ''}
+                            ${item.isIdentified ? '<span class="badge" style="background:#27ae60;">👁️ Identified</span>' : '<span class="badge" style="background:#7f8c8d;">❓ Unidentified</span>'}
+                            ${state.isDmMode && !item.isIdentified ? `<span class="badge keeper">DM: ${item.secretKeeper}</span>` : ''}
+                        </div>
+
+                        <div class="description-box">${descHtml}</div>
+
+                        ${state.isDmMode ? `
+                            <div class="card-actions">
+                                <button onclick="toggleIdentified(${item.id})" style="background: ${item.isIdentified ? '#f39c12' : '#2ecc71'};" ${!isKeeper ? 'disabled title="Only the original DM can identify this item"' : ''}>
+                                    ${item.isIdentified ? 'Mark Unidentified' : 'Mark Identified'}
+                                </button>
+                                <button onclick="toggleEdit(${item.id})">Edit Item</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                const playerOptionsHtml = rosterList.map(name => `<option value="${name}" ${item.owner === name ? "selected" : ""}>${name}</option>`).join("");
+
+                const editHtml = `
+                    <div class="edit-form ${item.isEditing ? 'active' : ''}">
+                        <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Item</h3>
+                        
+                        <div class="form-group">
+                            <label>Apparent Name (Public)</label>
+                            <input type="text" value="${item.apparentName}" oninput="updateItem(${item.id}, 'apparentName', this.value)">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>True Name (Secret)</label>
+                            <input type="text" value="${getEditableText(item.trueName, item.secretKeeper)}" oninput="updateItem(${item.id}, 'trueName', this.value)" ${!isKeeper ? 'disabled' : ''}>
+                        </div>
+                        <div class="form-group" style="flex-grow: 1;">
+                            <label>Description & Abilities (Secret)</label>
+                            <textarea oninput="updateItem(${item.id}, 'description', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.description, item.secretKeeper)}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Image (Upload or Paste URL)</label>
+                            <div style="display:flex; gap: 10px;">
+                                <input type="text" value="${item.imageUrl}" placeholder="URL..." oninput="updateItem(${item.id}, 'imageUrl', this.value)" style="flex-grow:1; margin:0;">
+                                <label class="add-btn" style="cursor:pointer; display:flex; align-items:center; border-radius:4px; padding: 0 10px;">
+                                    📁 Upload to Drive
+                                    <input type="file" style="display:none;" accept="image/*" onchange="handleImageUpload(${item.id}, this)">
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Current Owner</label>
+                                <select onchange="updateItem(${item.id}, 'owner', this.value)">${playerOptionsHtml}</select>
+                            </div>
+                            <div class="form-group">
+                                <label>Weight</label>
+                                <input type="text" value="${item.weight}" oninput="updateItem(${item.id}, 'weight', this.value)">
+                            </div>
+                        </div>
+
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="attune-${item.id}" ${item.requiresAttunement ? 'checked' : ''} onchange="updateItem(${item.id}, 'requiresAttunement', this.checked)">
+                            <label for="attune-${item.id}" style="cursor:pointer;">Requires Attunement</label>
+                        </div>
+
+                        <div class="card-actions">
+                            <button class="del-btn" onclick="removeItem(${item.id})" ${!isKeeper ? 'disabled' : ''}>Delete</button>
+                            <button class="add-btn" onclick="toggleEdit(${item.id})">Done</button>
+                        </div>
+                    </div>
+                `;
+
+                card.innerHTML = displayHtml + editHtml;
+                gridEl.appendChild(card);
+            });
+        }
+    </script>
 </body>
 </html>

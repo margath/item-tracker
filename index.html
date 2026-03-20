@@ -793,4 +793,223 @@ function doPost(e) {
         // --- Rendering Logic ---
         function renderAll() {
             const addBtn = document.getElementById('add-btn-header');
-            const loginBtn = document.getElementById('login-btn-
+            const loginBtn = document.getElementById('login-btn-header');
+            const logoutBtn = document.getElementById('logout-btn-header');
+            const userInfo = document.getElementById('user-info-display');
+            const userNameDisplay = document.getElementById('display-user-name');
+            const dmToolbar = document.getElementById('dm-toolbar');
+            
+            const titleEl = document.getElementById('main-page-title');
+            const setupBtn = document.getElementById('setup-btn-header');
+
+            // Header UI states
+            if (state.scriptUrl) {
+                titleEl.innerHTML = `Item Tracker`;
+                setupBtn.innerHTML = `⚙️✅ Setup`;
+                setupBtn.classList.add('configured');
+            } else {
+                titleEl.innerHTML = `Item Tracker <span style="font-size: 12px; color: #e67e22;">[Cartoon Demo Data]</span>`;
+                setupBtn.innerHTML = `⚙️ Setup`;
+                setupBtn.classList.remove('configured');
+            }
+
+            if (state.currentUser) {
+                loginBtn.style.display = 'none'; logoutBtn.style.display = 'block'; userInfo.style.display = 'block';
+                const role = state.isDmMode ? "DM" : "Player";
+                userNameDisplay.innerText = `${getPlayerDisplayName(state.currentUser)} (${role})`;
+                
+                if (state.isDmMode) { addBtn.style.display = 'block'; dmToolbar.style.display = 'flex'; }
+                else { addBtn.style.display = 'none'; dmToolbar.style.display = 'none'; }
+            } else {
+                loginBtn.style.display = 'block'; logoutBtn.style.display = 'none'; userInfo.style.display = 'none';
+                addBtn.style.display = 'none'; dmToolbar.style.display = 'none';
+            }
+
+            gridEl.innerHTML = '';
+            
+            if (state.items.length === 0) {
+                gridEl.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #777;">No loot found. Sync Data or log in as a DM to add items.</div>`;
+                return;
+            }
+
+            let displayItems = [...state.items];
+            
+            // Apply Search Filter
+            if (state.searchQuery.trim() !== "") {
+                displayItems = displayItems.filter(item => {
+                    let searchableText = (item.apparentName || "").toLowerCase();
+                    
+                    if (item.isIdentified || state.isDmMode) {
+                        searchableText += " " + (getDisplayText(item.trueName, item.secretKeeper) || item.trueName || "").toLowerCase();
+                        searchableText += " " + (getDisplayText(item.description, item.secretKeeper) || item.description || "").toLowerCase();
+                    }
+                    if (item.isCurseRevealed || state.isDmMode) {
+                        searchableText += " " + (getDisplayText(item.curseDetails, item.secretKeeper) || item.curseDetails || "").toLowerCase();
+                    }
+                    
+                    searchableText += " " + (item.owner || "Unclaimed").toLowerCase();
+                    return searchableText.includes(state.searchQuery);
+                });
+            }
+
+            // Apply Sorting
+            if (state.currentUser) {
+                displayItems.sort((a, b) => {
+                    const rankA = a.owner === state.currentUser.name ? 1 : (a.owner === "Party Stash" ? 2 : 3);
+                    const rankB = b.owner === state.currentUser.name ? 1 : (b.owner === "Party Stash" ? 2 : 3);
+                    return rankA - rankB;
+                });
+            } else {
+                displayItems.sort((a, b) => {
+                    const rankA = a.owner === "Party Stash" ? 1 : 2;
+                    const rankB = b.owner === "Party Stash" ? 1 : 2;
+                    return rankA - rankB;
+                });
+            }
+
+            if (displayItems.length === 0) {
+                gridEl.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #777;">No items match your search.</div>`;
+                return;
+            }
+
+            const rosterOptionsHtml = ["Party Stash", ...state.players.map(p => p.name)]
+                .map(ownerName => {
+                    const pData = state.players.find(p => p.name === ownerName);
+                    return { val: ownerName, label: pData ? getPlayerDisplayName(pData) : ownerName };
+                });
+
+            displayItems.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `loot-card ${item.isIdentified ? 'identified' : ''} ${item.isCurseRevealed ? 'cursed' : ''}`;
+
+                const isKeeper = state.isDmMode && state.currentUser && (state.currentUser.name === item.secretKeeper);
+                
+                let titleToShow = item.apparentName || "Unknown Item";
+                let subtitleHtml = ""; let descHtml = ""; let curseHtml = "";
+
+                // Decrypt core properties based on identification
+                if (item.isIdentified) {
+                    titleToShow = getDisplayText(item.trueName, item.secretKeeper) || item.trueName || item.apparentName;
+                    const plainDesc = getDisplayText(item.description, item.secretKeeper) || item.description;
+                    descHtml = plainDesc ? plainDesc.replace(/\n/g, '<br>') : "";
+                } else if (state.isDmMode) {
+                    const plainTrueName = getDisplayText(item.trueName, item.secretKeeper) || item.trueName;
+                    const plainDesc = getDisplayText(item.description, item.secretKeeper) || item.description;
+                    subtitleHtml = `<div class="true-name-reveal">True Name: ${plainTrueName}</div>`;
+                    descHtml = plainDesc ? plainDesc.replace(/\n/g, '<br>') : "";
+                } else {
+                    descHtml = "<div class='hidden-text'>Item properties are unknown until identified.</div>";
+                }
+
+                // Identify if a curse exists
+                let plainDC = ""; let plainCurse = ""; let hasCurse = false;
+                if (state.isDmMode || item.isCurseRevealed) {
+                    plainDC = getDisplayText(item.curseDetectDC, item.secretKeeper) || item.curseDetectDC || "";
+                    plainCurse = getDisplayText(item.curseDetails, item.secretKeeper) || item.curseDetails || "";
+                    if (plainDC.trim() !== "" || plainCurse.trim() !== "") {
+                        hasCurse = true;
+                    }
+                }
+
+                // Render Curse HTML if applicable
+                if (hasCurse) {
+                    if (item.isCurseRevealed) {
+                        curseHtml = `<div class="curse-box"><strong>💀 Curse Revealed</strong><br><em style="font-size: 11px; color:#aaa;">Identify DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
+                    } else if (state.isDmMode) {
+                        curseHtml = `<div class="curse-box hidden"><strong>🤫 Hidden Curse (DM Only)</strong><br><em style="font-size: 11px; color:#aaa;">Identify DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
+                    }
+                }
+
+                const imgHtml = item.imageUrl ? `<img src="${item.imageUrl}" alt="Item">` : `<div class="image-placeholder">No Image URL</div>`;
+                const ownerData = state.players.find(p => p.name === item.owner);
+                const ownerDisplay = ownerData ? getPlayerDisplayName(ownerData) : (item.owner || "Unclaimed");
+
+                // Determine Player Actions (Take/Return/Equip/Attune)
+                let playerActionsHtml = "";
+                if (state.currentUser && !state.isDmMode) {
+                    if (item.owner === "Party Stash") {
+                        playerActionsHtml = `<button onclick="takeItem(${item.id})" style="background: #27ae60; width: 100%;">🎒 Take Item</button>`;
+                    } else if (item.owner === state.currentUser.name) {
+                        playerActionsHtml += `<button onclick="togglePlayerItemAction(${item.id}, 'isEquipped')" style="background: ${item.isEquipped ? '#7f8c8d' : '#34495e'}; flex:1;">${item.isEquipped ? '👕 Unequip' : '👕 Equip'}</button>`;
+                        if (item.requiresAttunement) {
+                            playerActionsHtml += `<button onclick="togglePlayerItemAction(${item.id}, 'isAttuned')" style="background: ${item.isAttuned ? '#8e44ad' : '#9b59b6'}; flex:1;">${item.isAttuned ? '🔗 Break Attunement' : '🔗 Attune'}</button>`;
+                        }
+                        playerActionsHtml += `<button onclick="returnItem(${item.id})" style="background: #e67e22; flex:1;">📦 Return</button>`;
+                    }
+                }
+
+                const displayHtml = `
+                    <div class="image-container">${imgHtml}</div>
+                    <div class="card-content">
+                        <div><h3 class="item-title">${titleToShow}</h3>${subtitleHtml}</div>
+                        <div class="badges">
+                            <span class="badge owner">🎒 ${ownerDisplay}</span>
+                            <span class="badge">⚖️ ${item.weight || '-'}</span>
+                            ${item.isEquipped ? '<span class="badge equipped">👕 Equipped</span>' : ''}
+                            ${item.requiresAttunement && !item.isAttuned ? '<span class="badge">🔮 Requires Attunement</span>' : ''}
+                            ${item.isAttuned ? '<span class="badge attunement">🔗 Attuned</span>' : ''}
+                            ${item.isIdentified ? '<span class="badge" style="background:#27ae60;">👁️ Identified</span>' : '<span class="badge" style="background:#7f8c8d;">❓ Unidentified</span>'}
+                            ${item.isCurseRevealed ? '<span class="badge" style="background:#c0392b;">💀 Cursed</span>' : ''}
+                            ${state.isDmMode && !item.isIdentified ? `<span class="badge keeper">DM: ${item.secretKeeper}</span>` : ''}
+                        </div>
+                        <div class="description-box">${descHtml}</div>
+                        ${curseHtml}
+                        
+                        ${playerActionsHtml ? `<div class="card-actions" style="border-top: none;">${playerActionsHtml}</div>` : ''}
+                        
+                        ${state.isDmMode ? `
+                            <div class="card-actions">
+                                <button onclick="toggleIdentified(${item.id})" style="background: ${item.isIdentified ? '#f39c12' : '#2ecc71'}; flex: 1;" ${!isKeeper ? 'disabled title="Only the original DM can identify this"' : ''}>
+                                    ${item.isIdentified ? 'Mark Unidentified' : 'Mark Identified'}
+                                </button>
+                                ${hasCurse ? `
+                                <button onclick="toggleCurse(${item.id})" style="background: ${item.isCurseRevealed ? '#c0392b' : '#34495e'}; flex: 1;" ${!isKeeper ? 'disabled title="Only the original DM can reveal the curse"' : ''}>
+                                    ${item.isCurseRevealed ? 'Hide Curse' : 'Reveal Curse'}
+                                </button>` : ''}
+                                <button onclick="toggleEdit(${item.id})" style="flex: 1;">Edit Item</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                const selectOptions = rosterOptionsHtml.map(opt => `<option value="${opt.val}" ${item.owner === opt.val ? "selected" : ""}>${opt.label}</option>`).join("");
+
+                const editHtml = `
+                    <div class="edit-form ${item.isEditing && state.isDmMode ? 'active' : ''}">
+                        <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Item</h3>
+                        <div class="form-group"><label>Apparent Name (Public)</label><input type="text" value="${item.apparentName}" oninput="updateItem(${item.id}, 'apparentName', this.value)"></div>
+                        <div class="form-group"><label>True Name (Secret)</label><input type="text" value="${getEditableText(item.trueName, item.secretKeeper) || item.trueName}" oninput="updateItem(${item.id}, 'trueName', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
+                        <div class="form-group" style="flex-grow: 1;"><label>Description & Abilities (Secret)</label><textarea oninput="updateItem(${item.id}, 'description', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.description, item.secretKeeper) || item.description}</textarea></div>
+                        
+                        <div style="border-top: 1px dashed #e74c3c; margin-top: 5px; padding-top: 10px;">
+                            <div class="form-group"><label style="color: #e74c3c;">Identify Spell DC (Secret)</label><input type="text" placeholder="e.g., 15" value="${getEditableText(item.curseDetectDC, item.secretKeeper) || item.curseDetectDC}" oninput="updateItem(${item.id}, 'curseDetectDC', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
+                            <div class="form-group"><label style="color: #e74c3c;">Curse Details (Secret)</label><textarea oninput="updateItem(${item.id}, 'curseDetails', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.curseDetails, item.secretKeeper) || item.curseDetails}</textarea></div>
+                        </div>
+
+                        <div class="form-group"><label>Image (Upload or Paste URL)</label>
+                            <div style="display:flex; gap: 10px;">
+                                <input type="text" value="${item.imageUrl}" placeholder="URL..." oninput="updateItem(${item.id}, 'imageUrl', this.value)" style="flex-grow:1; margin:0;">
+                                <label class="add-btn" style="cursor:pointer; display:flex; align-items:center; border-radius:4px; padding: 0 10px;">📁 Upload<input type="file" style="display:none;" accept="image/*" onchange="handleImageUpload(${item.id}, this)"></label>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Owner</label><select onchange="updateItem(${item.id}, 'owner', this.value)">${selectOptions}</select></div>
+                            <div class="form-group"><label>Weight</label><input type="text" value="${item.weight}" oninput="updateItem(${item.id}, 'weight', this.value)"></div>
+                        </div>
+                        <div class="form-row" style="margin-top: 10px;">
+                            <div class="checkbox-group"><input type="checkbox" id="equip-${item.id}" ${item.isEquipped ? 'checked' : ''} onchange="updateItem(${item.id}, 'isEquipped', this.checked)"><label for="equip-${item.id}">Equipped/Worn</label></div>
+                            <div class="checkbox-group"><input type="checkbox" id="reqatt-${item.id}" ${item.requiresAttunement ? 'checked' : ''} onchange="updateItem(${item.id}, 'requiresAttunement', this.checked)"><label for="reqatt-${item.id}">Req. Attunement</label></div>
+                            <div class="checkbox-group"><input type="checkbox" id="attune-${item.id}" ${item.isAttuned ? 'checked' : ''} onchange="updateItem(${item.id}, 'isAttuned', this.checked)"><label for="attune-${item.id}">Is Attuned</label></div>
+                        </div>
+                        
+                        <div class="card-actions"><button class="del-btn" onclick="removeItem(${item.id})" ${!isKeeper ? 'disabled' : ''}>Delete</button><button class="add-btn" onclick="toggleEdit(${item.id});">Done</button></div>
+                    </div>
+                `;
+
+                card.innerHTML = displayHtml + editHtml;
+                gridEl.appendChild(card);
+            });
+        }
+    </script>
+</body>
+</html>

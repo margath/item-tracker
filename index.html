@@ -970,4 +970,167 @@ function doPost(e) {
 
             displayItems.forEach(item => {
                 const card = document.createElement('div');
-                card.className = `loot-card ${item.isIdentified ? 'identified' :
+                card.className = `loot-card ${item.isIdentified ? 'identified' : ''} ${item.isCurseRevealed ? 'cursed' : ''} ${item.isPhantom ? 'phantom' : ''}`;
+
+                const isKeeper = state.isDmMode && state.currentUser && (item.secretKeeper === "Shared" || state.currentUser.name === item.secretKeeper);
+                
+                let titleToShow = item.apparentName || "Unknown Item";
+                let subtitleHtml = ""; let descHtml = ""; let curseHtml = "";
+
+                // Decrypt core properties based on identification
+                if (item.isIdentified) {
+                    titleToShow = getDisplayText(item.trueName, item.secretKeeper, true) || item.trueName || item.apparentName;
+                    const plainDesc = getDisplayText(item.description, item.secretKeeper, true) || item.description;
+                    descHtml = plainDesc ? plainDesc.replace(/\n/g, '<br>') : "";
+                } else if (state.isDmMode) {
+                    const plainTrueName = getDisplayText(item.trueName, item.secretKeeper, false) || item.trueName;
+                    const plainDesc = getDisplayText(item.description, item.secretKeeper, false) || item.description;
+                    subtitleHtml = `<div class="true-name-reveal">True Name: ${plainTrueName}</div>`;
+                    descHtml = plainDesc ? plainDesc.replace(/\n/g, '<br>') : "";
+                } else {
+                    descHtml = "<div class='hidden-text'>Item properties are unknown until identified.</div>";
+                }
+
+                // Identify if a curse exists
+                let plainDC = ""; let plainCurse = ""; let hasCurse = false;
+                if (state.isDmMode || item.isCurseRevealed) {
+                    plainDC = getDisplayText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC || "";
+                    plainCurse = getDisplayText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails || "";
+                    if (plainDC.trim() !== "" || plainCurse.trim() !== "") { hasCurse = true; }
+                }
+
+                // Render Curse HTML
+                if (hasCurse) {
+                    if (item.isCurseRevealed) {
+                        curseHtml = `<div class="curse-box"><strong>💀 Curse Revealed</strong><br><em style="font-size: 11px; color:#aaa;">Identify DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
+                    } else if (state.isDmMode) {
+                        curseHtml = `<div class="curse-box hidden"><strong>🤫 Hidden Curse (DM Only)</strong><br><em style="font-size: 11px; color:#aaa;">Identify DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
+                    }
+                }
+
+                const imgHtml = item.imageUrl ? `<img src="${item.imageUrl}" alt="Item">` : `<div class="image-placeholder">No Image URL</div>`;
+                const ownerData = state.players.find(p => p.name === item.owner);
+                const ownerDisplay = ownerData ? getPlayerDisplayName(ownerData) : (item.owner || "Unclaimed");
+
+                // Determine Consumable Controls
+                let consumeActionsHtml = "";
+                if (item.isConsumable) {
+                    const canEditQty = state.isDmMode || (state.currentUser && item.owner === state.currentUser.name);
+                    if (canEditQty) {
+                        consumeActionsHtml = `
+                            <div class="consume-controls">
+                                <span style="font-size:12px; color:#aaa; font-weight:bold;">QTY:</span>
+                                <button class="qty-btn minus" onclick="decrementQuantity('${item.id}')">-</button>
+                                <span style="font-size:16px; font-weight:bold; min-width:24px; text-align:center;">${item.quantity !== undefined ? item.quantity : 1}</span>
+                                <button class="qty-btn plus" onclick="incrementQuantity('${item.id}', '${item.phantomDataStr || ""}')">+</button>
+                                ${(!item.isPhantom && item.quantity === 0 && !state.isDmMode) ? `<button onclick="removeItem('${item.id}')" style="background:#c0392b; padding:4px 8px; margin-left:auto; font-size:11px;">🗑️ Clear Empty</button>` : ''}
+                            </div>
+                        `;
+                    }
+                }
+
+                // Determine Player Actions (Take/Return/Equip/Attune)
+                let playerActionsHtml = "";
+                if (state.currentUser && !state.isDmMode && !item.isPhantom) {
+                    if (item.owner === "Party Stash") {
+                        playerActionsHtml = `<button onclick="takeItem('${item.id}')" style="background: #27ae60; width: 100%;">🎒 Take Item</button>`;
+                    } else if (item.owner === state.currentUser.name) {
+                        playerActionsHtml += `<button onclick="togglePlayerItemAction('${item.id}', 'isEquipped')" style="background: ${item.isEquipped ? '#7f8c8d' : '#34495e'}; flex:1;">${item.isEquipped ? '👕 Unequip' : '👕 Equip'}</button>`;
+                        if (item.requiresAttunement) {
+                            playerActionsHtml += `<button onclick="togglePlayerItemAction('${item.id}', 'isAttuned')" style="background: ${item.isAttuned ? '#8e44ad' : '#9b59b6'}; flex:1;">${item.isAttuned ? '🔗 Break Attunement' : '🔗 Attune'}</button>`;
+                        }
+                        playerActionsHtml += `<button onclick="returnItem('${item.id}')" style="background: #e67e22; flex:1;">📦 Return</button>`;
+                    }
+                }
+                
+                let shareButtonHtml = "";
+                if (item.secretKeeper === "Shared") {
+                    shareButtonHtml = `<div style="font-size:12px; color:#2ecc71; text-align:center; width:100%; padding: 10px 0; border-top: 1px dashed #444; margin-top: 10px;">🔓 Shared with all DMs</div>`;
+                } else if (state.currentUser && state.currentUser.name === item.secretKeeper) {
+                    shareButtonHtml = `<div style="border-top: 1px dashed #444; margin-top: 10px; padding-top: 10px; width: 100%;"><button onclick="makeShared('${item.id}')" style="background: #9b59b6; width: 100%;">🔓 Allow All DMs to Edit</button></div>`;
+                }
+
+                const displayHtml = `
+                    <div class="image-container">${imgHtml}</div>
+                    <div class="card-content">
+                        <div><h3 class="item-title">${titleToShow}</h3>${subtitleHtml}</div>
+                        <div class="badges">
+                            <span class="badge owner">🎒 ${ownerDisplay}</span>
+                            <span class="badge">⚖️ ${item.weight || '-'}</span>
+                            <span class="badge qty">📦 Qty: ${item.quantity !== undefined ? item.quantity : 1}</span>
+                            ${item.isEquipped ? '<span class="badge equipped">👕 Equipped</span>' : ''}
+                            ${item.requiresAttunement && !item.isAttuned ? '<span class="badge">🔮 Requires Attunement</span>' : ''}
+                            ${item.isAttuned ? '<span class="badge attunement">🔗 Attuned</span>' : ''}
+                            ${item.isIdentified ? '<span class="badge" style="background:#27ae60;">👁️ Identified</span>' : '<span class="badge" style="background:#7f8c8d;">❓ Unidentified</span>'}
+                            ${item.isCurseRevealed ? '<span class="badge" style="background:#c0392b;">💀 Cursed</span>' : ''}
+                            ${item.secretKeeper && !item.isPhantom ? `<span class="badge keeper">GM: ${item.secretKeeper}</span>` : ''}
+                        </div>
+                        <div class="description-box">${descHtml}</div>
+                        ${curseHtml}
+                        
+                        ${consumeActionsHtml}
+                        ${playerActionsHtml ? `<div class="card-actions" style="border-top: none; padding-top: 0;">${playerActionsHtml}</div>` : ''}
+                        
+                        ${state.isDmMode && !item.isPhantom ? `
+                            <div class="card-actions">
+                                <button onclick="toggleIdentified('${item.id}')" style="background: ${item.isIdentified ? '#f39c12' : '#2ecc71'}; flex: 1;" ${!isKeeper ? 'disabled title="Only the original DM can identify this"' : ''}>
+                                    ${item.isIdentified ? 'Mark Unidentified' : 'Mark Identified'}
+                                </button>
+                                ${hasCurse ? `
+                                <button onclick="toggleCurse('${item.id}')" style="background: ${item.isCurseRevealed ? '#c0392b' : '#34495e'}; flex: 1;" ${!isKeeper ? 'disabled title="Only the original DM can reveal the curse"' : ''}>
+                                    ${item.isCurseRevealed ? 'Hide Curse' : 'Reveal Curse'}
+                                </button>` : ''}
+                                <button onclick="toggleEdit('${item.id}')" style="flex: 1;">Edit Item</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                const selectOptions = rosterOptionsHtml.map(opt => `<option value="${opt.val}" ${item.owner === opt.val ? "selected" : ""}>${opt.label}</option>`).join("");
+
+                let editHtml = "";
+                if (!item.isPhantom) {
+                    editHtml = `
+                        <div class="edit-form ${item.isEditing && state.isDmMode ? 'active' : ''}">
+                            <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Item</h3>
+                            <div class="form-group"><label>Apparent Name (Public)</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value)"></div>
+                            <div class="form-group"><label>True Name (Secret)</label><input type="text" value="${getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName}" oninput="updateItem('${item.id}', 'trueName', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
+                            <div class="form-group" style="flex-grow: 1;"><label>Description & Abilities (Secret)</label><textarea oninput="updateItem('${item.id}', 'description', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description}</textarea></div>
+                            
+                            <div style="border-top: 1px dashed #e74c3c; margin-top: 5px; padding-top: 10px;">
+                                <div class="form-group"><label style="color: #e74c3c;">Identify Spell DC (Secret)</label><input type="text" placeholder="e.g., 15" value="${getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC}" oninput="updateItem('${item.id}', 'curseDetectDC', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
+                                <div class="form-group"><label style="color: #e74c3c;">Curse Details (Secret)</label><textarea oninput="updateItem('${item.id}', 'curseDetails', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails}</textarea></div>
+                            </div>
+
+                            <div class="form-group"><label>Image (Upload or Paste URL)</label>
+                                <div style="display:flex; gap: 10px;">
+                                    <input type="text" value="${item.imageUrl}" placeholder="URL..." oninput="updateItem('${item.id}', 'imageUrl', this.value)" style="flex-grow:1; margin:0;">
+                                    <label class="add-btn" style="cursor:pointer; display:flex; align-items:center; border-radius:4px; padding: 0 10px;">📁 Upload<input type="file" style="display:none;" accept="image/*" onchange="handleImageUpload('${item.id}', this)"></label>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${selectOptions}</select></div>
+                                <div class="form-group"><label>Weight</label><input type="text" value="${item.weight}" oninput="updateItem('${item.id}', 'weight', this.value)"></div>
+                                <div class="form-group"><label>Quantity</label><input type="number" min="0" value="${item.quantity !== undefined ? item.quantity : 1}" oninput="updateItem('${item.id}', 'quantity', parseInt(this.value) || 0)"></div>
+                            </div>
+                            <div class="form-row" style="margin-top: 10px; flex-wrap:wrap;">
+                                <div class="checkbox-group"><input type="checkbox" id="consumable-${item.id}" ${item.isConsumable ? 'checked' : ''} onchange="updateItem('${item.id}', 'isConsumable', this.checked)"><label for="consumable-${item.id}">Is Consumable</label></div>
+                                <div class="checkbox-group"><input type="checkbox" id="equip-${item.id}" ${item.isEquipped ? 'checked' : ''} onchange="updateItem('${item.id}', 'isEquipped', this.checked)"><label for="equip-${item.id}">Equipped/Worn</label></div>
+                                <div class="checkbox-group"><input type="checkbox" id="reqatt-${item.id}" ${item.requiresAttunement ? 'checked' : ''} onchange="updateItem('${item.id}', 'requiresAttunement', this.checked)"><label for="reqatt-${item.id}">Req. Attunement</label></div>
+                                <div class="checkbox-group"><input type="checkbox" id="attune-${item.id}" ${item.isAttuned ? 'checked' : ''} onchange="updateItem('${item.id}', 'isAttuned', this.checked)"><label for="attune-${item.id}">Is Attuned</label></div>
+                            </div>
+                            
+                            ${shareButtonHtml}
+                            
+                            <div class="card-actions" style="margin-top: 10px;"><button class="del-btn" onclick="removeItem('${item.id}')" ${!isKeeper && item.secretKeeper !== "Shared" ? 'disabled' : ''}>Delete</button><button class="add-btn" onclick="toggleEdit('${item.id}');">Done</button></div>
+                        </div>
+                    `;
+                }
+
+                card.innerHTML = displayHtml + editHtml;
+                gridEl.appendChild(card);
+            });
+        }
+    </script>
+</body>
+</html>

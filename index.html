@@ -169,7 +169,7 @@
             <h2>Select Character</h2>
             <p style="font-size: 12px; color: #aaa;">Enter your PIN to manage your inventory, or unlock DM tools.</p>
             <select id="login-name"></select>
-            <input type="password" id="login-pin" placeholder="Enter PIN (e.g., 1111)">
+            <input type="password" id="login-pin" placeholder="Enter PIN">
             
             <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
                 <button class="add-btn" onclick="submitLogin(false)">👤 Enter as Player</button>
@@ -309,6 +309,8 @@ function doPost(e) {
                 
                 <button id="add-btn-header" class="add-btn" style="display: none;" onclick="addNewItem()">+ Add Item</button>
                 
+                <button id="switch-mode-btn" style="display: none; background: #9b59b6;" onclick="toggleViewMode()">👁️ Switch to DM View</button>
+
                 <button id="login-btn-header" class="dm-toggle-btn" onclick="openLoginModal()">👤 Log In</button>
                 <button id="logout-btn-header" style="background: #555; display: none;" onclick="handleLogout()">Logout</button>
 
@@ -342,8 +344,13 @@ function doPost(e) {
             isDmMode: false,
             scriptUrl: localStorage.getItem('lootTrackerScriptUrl') || "",
             searchQuery: "",
-            // PRE-LOADED DEMO ROSTER
-            players: [
+            players: [], 
+            items: []
+        };
+
+        // --- Demo Data ---
+        function loadDemoData() {
+            state.players = [
                 { name: "Hank", pin: "1111", character: "Ranger" },
                 { name: "Eric", pin: "2222", character: "Cavalier" },
                 { name: "Diana", pin: "3333", character: "Acrobat" },
@@ -351,83 +358,36 @@ function doPost(e) {
                 { name: "Sheila", pin: "5555", character: "Thief" },
                 { name: "Bobby", pin: "6666", character: "Barbarian" },
                 { name: "Dungeon Master", pin: "7777", character: "DM" }
-            ], 
-            // PRE-LOADED DEMO ITEMS
-            items: [
+            ];
+            state.items = [
                 {
-                    id: 1,
-                    isIdentified: true,
-                    apparentName: "Glowing Longbow",
-                    trueName: "Energy Bow",
-                    imageUrl: "", 
-                    weight: "2.5 lbs",
-                    description: "Fires arrows of pure magical energy. Can be used to attack, create light, or form solid barriers and ropes.",
-                    requiresAttunement: true,
-                    isAttuned: true,
-                    isEquipped: true,
-                    owner: "Hank",
-                    secretKeeper: "Dungeon Master",
-                    isCurseRevealed: false,
-                    curseDetectDC: "",
-                    curseDetails: "",
-                    isEditing: false 
+                    id: 1, isIdentified: true, apparentName: "Glowing Longbow", trueName: "Energy Bow",
+                    imageUrl: "", weight: "2.5 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, owner: "Hank",
+                    secretKeeper: "Dungeon Master", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
+                    description: "Fires arrows of pure magical energy. Can be used to attack, create light, or form solid barriers and ropes." 
                 },
                 {
-                    id: 2,
-                    isIdentified: true,
-                    apparentName: "Green Wizard Hat",
-                    trueName: "Hat of Many Spells",
-                    imageUrl: "", 
-                    weight: "1 lbs",
+                    id: 2, isIdentified: true, apparentName: "Green Wizard Hat", trueName: "Hat of Many Spells",
+                    imageUrl: "", weight: "1 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, owner: "Presto",
+                    secretKeeper: "Dungeon Master", isCurseRevealed: true, curseDetectDC: "14", isEditing: false, 
                     description: "A magical hat that allows the wearer to pull out magical effects and objects.",
-                    requiresAttunement: true,
-                    isAttuned: true,
-                    isEquipped: true,
-                    owner: "Presto",
-                    secretKeeper: "Dungeon Master",
-                    isCurseRevealed: true,
-                    curseDetectDC: "14",
-                    curseDetails: "The magic is highly unpredictable. Often produces comedic or mildly dangerous results instead of the desired spell.",
-                    isEditing: false 
+                    curseDetails: "The magic is highly unpredictable. Often produces comedic or mildly dangerous results instead of the desired spell."
                 },
                 {
-                    id: 3,
-                    isIdentified: false,
-                    apparentName: "Glowing Red Scale",
-                    trueName: "Scale of Tiamat",
-                    imageUrl: "", 
-                    weight: "5 lbs",
+                    id: 3, isIdentified: false, apparentName: "Glowing Red Scale", trueName: "Scale of Tiamat",
+                    imageUrl: "", weight: "5 lbs", requiresAttunement: true, isAttuned: false, isEquipped: false, owner: "Party Stash",
+                    secretKeeper: "Dungeon Master", isCurseRevealed: false, curseDetectDC: "18", isEditing: false, 
                     description: "A massive, heavy scale radiating immense heat and abjuration magic. Grants Resistance to Fire damage.",
-                    requiresAttunement: true,
-                    isAttuned: false,
-                    isEquipped: false,
-                    owner: "Party Stash",
-                    secretKeeper: "Dungeon Master",
-                    isCurseRevealed: false,
-                    curseDetectDC: "18",
-                    curseDetails: "Attracts the attention of evil dragons. Chromatic dragons within 5 miles become hostile and actively seek the bearer.",
-                    isEditing: false 
+                    curseDetails: "Attracts the attention of evil dragons. Chromatic dragons within 5 miles become hostile and actively seek the bearer."
                 },
                 {
-                    id: 4,
-                    isIdentified: true,
-                    apparentName: "Griffon Shield",
-                    trueName: "Griffon Shield",
-                    imageUrl: "", 
-                    weight: "8 lbs",
-                    description: "A magical shield that can project a powerful force field to protect the wielder and allies.",
-                    requiresAttunement: true,
-                    isAttuned: true,
-                    isEquipped: true,
-                    owner: "Eric",
-                    secretKeeper: "Dungeon Master",
-                    isCurseRevealed: false,
-                    curseDetectDC: "",
-                    curseDetails: "",
-                    isEditing: false 
+                    id: 4, isIdentified: true, apparentName: "Griffon Shield", trueName: "Griffon Shield",
+                    imageUrl: "", weight: "8 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, owner: "Eric",
+                    secretKeeper: "Dungeon Master", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
+                    description: "A magical shield that can project a powerful force field to protect the wielder and allies." 
                 }
-            ]
-        };
+            ];
+        }
 
         const gridEl = document.getElementById('loot-grid');
         const loginModal = document.getElementById('login-modal');
@@ -439,6 +399,7 @@ function doPost(e) {
             if(state.scriptUrl) {
                 loadFromCloud(); 
             } else {
+                loadDemoData();
                 renderAll(); 
             }
         };
@@ -477,7 +438,15 @@ function doPost(e) {
             state.scriptUrl = document.getElementById('script-url-input').value.trim();
             localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
             closeSetup();
-            loadFromCloud();
+            
+            // Clear demo data upon successful setup
+            state.items = [];
+            state.players = [];
+            state.currentUser = null;
+            state.isDmMode = false;
+            
+            if (state.scriptUrl) { loadFromCloud(); } 
+            else { loadDemoData(); renderAll(); }
         }
         function copyScriptCode() {
             const code = document.getElementById('app-script-code').innerText;
@@ -523,13 +492,30 @@ function doPost(e) {
             if (user) {
                 state.currentUser = user; state.isDmMode = asDm;
                 closeLoginModal(); renderAll();
-            } else { alert("Incorrect PIN. (Hint for Demo: Try '1111' for Hank, or '7777' for Dungeon Master)"); }
+            } else { alert("Incorrect PIN."); }
         }
 
         function handleLogout() {
             state.currentUser = null; state.isDmMode = false;
             state.items.forEach(item => item.isEditing = false);
             renderAll();
+        }
+
+        // Mode Switch (Allows DM/Player switching without logging out)
+        function toggleViewMode() {
+            if (state.isDmMode) {
+                state.isDmMode = false;
+                state.items.forEach(i => i.isEditing = false);
+                renderAll();
+            } else {
+                const pin = prompt(`Enter PIN for ${state.currentUser.name} to unlock DM View:`);
+                if (pin === state.currentUser.pin) {
+                    state.isDmMode = true;
+                    renderAll();
+                } else if (pin !== null) {
+                    alert("Incorrect PIN.");
+                }
+            }
         }
 
         // --- Search Logic ---
@@ -699,7 +685,7 @@ function doPost(e) {
                 const data = await response.json();
                 
                 if (data.players) state.players = data.players;
-                if (data.items) {
+                if (data.items && data.items.length > 0) {
                     state.items = data.items.map(item => ({
                         ...item,
                         isEquipped: String(item.isEquipped).toLowerCase() === 'true',
@@ -708,6 +694,8 @@ function doPost(e) {
                         requiresAttunement: String(item.requiresAttunement).toLowerCase() === 'true',
                         isCurseRevealed: String(item.isCurseRevealed).toLowerCase() === 'true'
                     }));
+                } else {
+                    state.items = [];
                 }
             } catch(e) { console.error("Load error:", e); }
             
@@ -801,6 +789,7 @@ function doPost(e) {
             
             const titleEl = document.getElementById('main-page-title');
             const setupBtn = document.getElementById('setup-btn-header');
+            const switchModeBtn = document.getElementById('switch-mode-btn');
 
             // Header UI states
             if (state.scriptUrl) {
@@ -814,15 +803,25 @@ function doPost(e) {
             }
 
             if (state.currentUser) {
-                loginBtn.style.display = 'none'; logoutBtn.style.display = 'block'; userInfo.style.display = 'block';
+                loginBtn.style.display = 'none'; logoutBtn.style.display = 'block'; 
+                userInfo.style.display = 'block'; switchModeBtn.style.display = 'block';
+                
                 const role = state.isDmMode ? "DM" : "Player";
                 userNameDisplay.innerText = `${getPlayerDisplayName(state.currentUser)} (${role})`;
                 
-                if (state.isDmMode) { addBtn.style.display = 'block'; dmToolbar.style.display = 'flex'; }
-                else { addBtn.style.display = 'none'; dmToolbar.style.display = 'none'; }
+                if (state.isDmMode) { 
+                    addBtn.style.display = 'block'; dmToolbar.style.display = 'flex'; 
+                    switchModeBtn.innerHTML = '👤 Switch to Player View';
+                    switchModeBtn.style.background = '#e67e22';
+                }
+                else { 
+                    addBtn.style.display = 'none'; dmToolbar.style.display = 'none'; 
+                    switchModeBtn.innerHTML = '👁️ Switch to DM View';
+                    switchModeBtn.style.background = '#9b59b6';
+                }
             } else {
                 loginBtn.style.display = 'block'; logoutBtn.style.display = 'none'; userInfo.style.display = 'none';
-                addBtn.style.display = 'none'; dmToolbar.style.display = 'none';
+                addBtn.style.display = 'none'; dmToolbar.style.display = 'none'; switchModeBtn.style.display = 'none';
             }
 
             gridEl.innerHTML = '';

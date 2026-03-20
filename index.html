@@ -117,6 +117,7 @@
             box-shadow: 0 6px 15px rgba(0,0,0,0.3); border: 1px solid #444;
             display: flex; flex-direction: column; position: relative;
         }
+        .loot-card.phantom { opacity: 0.7; border: 1px dashed #555; }
         .loot-card.identified { border-color: #f1c40f; }
         .loot-card.cursed { border-color: #e74c3c; }
 
@@ -138,6 +139,7 @@
         .badge.owner { background: #2980b9; color: white; }
         .badge.equipped { background: #27ae60; color: white; }
         .badge.keeper { background: #e67e22; color: white; }
+        .badge.qty { background: #e67e22; color: white; font-size: 12px; }
         
         .description-box {
             background: #1e1e24; padding: 10px; border-radius: 6px;
@@ -152,6 +154,17 @@
         .curse-box.hidden { border-style: dashed; border-color: #e67e22; color: #f39c12; background: #2a2015; }
 
         .hidden-text { color: #777; font-style: italic; text-align: center; padding: 10px 0; }
+
+        /* Consumable Controls */
+        .consume-controls {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            background: #1a1a20; padding: 8px; border-radius: 6px; border: 1px solid #555;
+            margin-bottom: 5px;
+        }
+        .qty-btn { background: #555; width: 30px; height: 30px; border-radius: 50%; font-size: 18px; line-height: 1; display:flex; align-items:center; justify-content:center;}
+        .qty-btn:hover { background: #777; }
+        .qty-btn.minus { background: #e74c3c; } .qty-btn.minus:hover { background: #c0392b; }
+        .qty-btn.plus { background: #2ecc71; } .qty-btn.plus:hover { background: #27ae60; }
 
         /* Edit Form Overlay */
         .edit-form {
@@ -231,13 +244,11 @@
                     <li>Create a new <a href="https://sheets.new" target="_blank" style="color:#3498db;">Google Sheet</a>.</li>
                     <li>At the bottom left, add a new tab and name it exactly: <strong>Players</strong>.</li>
                     <li>In the <strong>Players</strong> tab, set up your roster starting in Row 2. <br>
-                        <em>Col A: Player Name | Col B: PIN | Col C: Character Name (Optional)</em>
+                        <em>Col A: Player Name | Col B: PIN | Col C: Character Name</em>
                     </li>
                     <li>In the top menu, click <strong>Extensions > Apps Script</strong>.</li>
-                    <li>Delete any default code and paste the script from the box below. <br>
-                        <em style="color: #f39c12;">(Note: This script automatically creates beautiful, sortable columns in your sheet!)</em>
-                    </li>
-                    <li>Click <strong>Deploy > New deployment</strong>.</li>
+                    <li>Delete any default code and paste the script below. <strong style="color:#f39c12;">(Be sure to deploy a New Version if updating!)</strong></li>
+                    <li>Click <strong>Deploy > New deployment</strong> (or Manage Deployments > New Version).</li>
                     <li>Select type <strong>Web app</strong>. Set 'Execute as' to <strong>Me</strong> and 'Who has access' to <strong>Anyone</strong>.</li>
                     <li>Click Deploy, Authorize the permissions, and copy the generated <strong>Web app URL</strong>.</li>
                 </ol>
@@ -263,7 +274,9 @@ function doGet(e) {
     let items = [];
     if (s) {
       let data = s.getDataRange().getValues();
-      if (data.length > 1) {
+      if (data.length === 1 && typeof data[0][0] === 'string' && data[0][0].trim().startsWith('[')) {
+        items = JSON.parse(data[0][0]); // Auto-migrate old JSON format
+      } else if (data.length > 1) {
         let headers = data[0];
         for (let i = 1; i < data.length; i++) {
           let item = {};
@@ -279,9 +292,7 @@ function doGet(e) {
       for(let i=1; i < data.length; i++) { 
         if(data[i][0] && data[i][1]) {
           players.push({
-            name: data[i][0].toString(), 
-            pin: data[i][1].toString(),
-            character: data[i][2] ? data[i][2].toString() : ""
+            name: data[i][0].toString(), pin: data[i][1].toString(), character: data[i][2] ? data[i][2].toString() : ""
           });
         }
       }
@@ -305,10 +316,17 @@ function doPost(e) {
       if (!s) s = SpreadsheetApp.getActive().insertSheet(SHEET_NAME);
       s.clear(); 
       if (p.data && p.data.length > 0) {
-        let headers = Object.keys(p.data[0]);
+        let headers = ["id", "apparentName", "trueName", "imageUrl", "owner", "weight", "quantity", "isConsumable", "isEquipped", "requiresAttunement", "isAttuned", "isIdentified", "description", "isCurseRevealed", "curseDetectDC", "curseDetails", "secretKeeper"];
         let rows = [headers];
-        p.data.forEach(item => { rows.push(headers.map(h => item[h])); });
-        // This command creates the clean, readable columns in your Google Sheet!
+        p.data.forEach(item => { 
+          let rowData = headers.map(h => {
+            let val = item[h];
+            if (val === undefined || val === null) return "";
+            if (typeof val === 'boolean') return val ? "TRUE" : "FALSE";
+            return val;
+          });
+          rows.push(rowData); 
+        });
         s.getRange(1, 1, rows.length, headers.length).setValues(rows);
       }
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
@@ -381,7 +399,14 @@ function doPost(e) {
             items: []
         };
 
-        // --- SRD Database ---
+        // --- Data Bases ---
+        const PHANTOM_POTIONS = [
+            { apparentName: "Red Potion", trueName: "Potion of Healing", description: "Regain 2d4 + 2 HP.", weight: "0.5 lbs" },
+            { apparentName: "Greater Red Potion", trueName: "Potion of Greater Healing", description: "Regain 4d4 + 4 HP.", weight: "0.5 lbs" },
+            { apparentName: "Superior Red Potion", trueName: "Potion of Superior Healing", description: "Regain 8d4 + 8 HP.", weight: "0.5 lbs" },
+            { apparentName: "Supreme Red Potion", trueName: "Potion of Supreme Healing", description: "Regain 10d4 + 20 HP.", weight: "0.5 lbs" }
+        ];
+
         const SRD_ITEMS = [
             { type: "Wondrous Item", trueName: "Bag of Holding", apparent: "Heavy Canvas Sack", weight: "15 lbs", attune: false, desc: "This bag has an interior space considerably larger than its outside dimensions, roughly 2 feet in diameter at the mouth and 4 feet deep. The bag can hold up to 500 pounds, not exceeding a volume of 64 cubic feet. The bag weighs 15 pounds, regardless of its contents." },
             { type: "Ring", trueName: "Ring of Protection", apparent: "Simple Silver Ring", weight: "-", attune: true, desc: "You gain a +1 bonus to AC and saving throws while wearing this ring." },
@@ -408,30 +433,30 @@ function doPost(e) {
             ];
             state.items = [
                 {
-                    id: 1, isIdentified: true, apparentName: "Glowing Longbow", trueName: "Energy Bow",
+                    id: 1, isIdentified: true, apparentName: "Glowing Longbow", trueName: "Energy Bow", quantity: 1, isConsumable: false,
                     imageUrl: "", weight: "2.5 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, owner: "Hank",
                     secretKeeper: "Dungeon Master", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
                     description: "Fires arrows of pure magical energy. Can be used to attack, create light, or form solid barriers and ropes." 
                 },
                 {
-                    id: 2, isIdentified: true, apparentName: "Green Wizard Hat", trueName: "Hat of Many Spells",
+                    id: 2, isIdentified: true, apparentName: "Green Wizard Hat", trueName: "Hat of Many Spells", quantity: 1, isConsumable: false,
                     imageUrl: "", weight: "1 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, owner: "Presto",
                     secretKeeper: "Dungeon Master", isCurseRevealed: true, curseDetectDC: "14", isEditing: false, 
                     description: "A magical hat that allows the wearer to pull out magical effects and objects.",
                     curseDetails: "The magic is highly unpredictable. Often produces comedic or mildly dangerous results instead of the desired spell."
                 },
                 {
-                    id: 3, isIdentified: false, apparentName: "Glowing Red Scale", trueName: "Scale of Tiamat",
+                    id: 3, isIdentified: false, apparentName: "Glowing Red Scale", trueName: "Scale of Tiamat", quantity: 1, isConsumable: false,
                     imageUrl: "", weight: "5 lbs", requiresAttunement: true, isAttuned: false, isEquipped: false, owner: "Party Stash",
                     secretKeeper: "Dungeon Master", isCurseRevealed: false, curseDetectDC: "18", isEditing: false, 
                     description: "A massive, heavy scale radiating immense heat and abjuration magic. Grants Resistance to Fire damage.",
                     curseDetails: "Attracts the attention of evil dragons. Chromatic dragons within 5 miles become hostile and actively seek the bearer."
                 },
                 {
-                    id: 4, isIdentified: true, apparentName: "Griffon Shield", trueName: "Griffon Shield",
-                    imageUrl: "", weight: "8 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, owner: "Eric",
+                    id: 4, isIdentified: true, apparentName: "Glass Potion Bottle", trueName: "Potion of Healing", quantity: 2, isConsumable: true,
+                    imageUrl: "", weight: "0.5 lbs", requiresAttunement: false, isAttuned: false, isEquipped: false, owner: "Hank",
                     secretKeeper: "Shared", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
-                    description: "A magical shield that can project a powerful force field to protect the wielder and allies." 
+                    description: "You regain hit points when you drink this potion. Regain 2d4 + 2 HP." 
                 }
             ];
         }
@@ -444,28 +469,19 @@ function doPost(e) {
 
         window.onload = () => {
             document.getElementById('script-url-input').value = state.scriptUrl;
-            if(state.scriptUrl) {
-                loadFromCloud(); 
-            } else {
-                loadDemoData();
-                renderAll(); 
-            }
+            if(state.scriptUrl) { loadFromCloud(); } 
+            else { loadDemoData(); renderAll(); }
         };
 
         // --- Setup / Config ---
         function openSetup() { 
             const container = document.getElementById('setup-instructions-container');
             const toggleBtn = document.getElementById('toggle-instructions-btn');
-            
             if (state.scriptUrl) {
-                container.style.display = 'none';
-                toggleBtn.style.display = 'block';
-                toggleBtn.innerText = '📖 Show Setup Instructions';
+                container.style.display = 'none'; toggleBtn.style.display = 'block'; toggleBtn.innerText = '📖 Show Setup Instructions';
             } else {
-                container.style.display = 'block';
-                toggleBtn.style.display = 'none';
+                container.style.display = 'block'; toggleBtn.style.display = 'none';
             }
-            
             setupScreen.style.display = 'flex'; 
         }
         
@@ -473,11 +489,9 @@ function doPost(e) {
             const container = document.getElementById('setup-instructions-container');
             const btn = document.getElementById('toggle-instructions-btn');
             if (container.style.display === 'none') {
-                container.style.display = 'block';
-                btn.innerText = '📖 Hide Setup Instructions';
+                container.style.display = 'block'; btn.innerText = '📖 Hide Setup Instructions';
             } else {
-                container.style.display = 'none';
-                btn.innerText = '📖 Show Setup Instructions';
+                container.style.display = 'none'; btn.innerText = '📖 Show Setup Instructions';
             }
         }
 
@@ -486,14 +500,8 @@ function doPost(e) {
             state.scriptUrl = document.getElementById('script-url-input').value.trim();
             localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
             closeSetup();
-            
-            state.items = [];
-            state.players = [];
-            state.currentUser = null;
-            state.isDmMode = false;
-            
-            if (state.scriptUrl) { loadFromCloud(); } 
-            else { loadDemoData(); renderAll(); }
+            state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
+            if (state.scriptUrl) { loadFromCloud(); } else { loadDemoData(); renderAll(); }
         }
         function copyScriptCode() {
             const code = document.getElementById('app-script-code').innerText;
@@ -504,50 +512,31 @@ function doPost(e) {
         // --- SRD Functions ---
         function openSrdModal() {
             document.getElementById('srd-search-input').value = "";
-            renderSrdList();
-            srdModal.style.display = 'flex';
+            renderSrdList(); srdModal.style.display = 'flex';
         }
-
         function closeSrdModal() { srdModal.style.display = 'none'; }
-
         function renderSrdList() {
             const query = document.getElementById('srd-search-input').value.toLowerCase();
             const container = document.getElementById('srd-list-container');
             container.innerHTML = "";
-
-            const filtered = SRD_ITEMS.filter(item => 
-                item.trueName.toLowerCase().includes(query) || item.type.toLowerCase().includes(query)
-            );
-
-            filtered.forEach((item, originalIndex) => {
-                // Find actual index in constant array
+            const filtered = SRD_ITEMS.filter(item => item.trueName.toLowerCase().includes(query) || item.type.toLowerCase().includes(query));
+            filtered.forEach((item) => {
                 const realIndex = SRD_ITEMS.findIndex(i => i.trueName === item.trueName);
-                
-                const el = document.createElement('div');
-                el.className = 'srd-item';
+                const el = document.createElement('div'); el.className = 'srd-item';
                 el.innerHTML = `
-                    <div>
-                        <div class="srd-item-name">${item.trueName}</div>
-                        <div class="srd-item-type">${item.type} | ${item.attune ? 'Requires Attunement' : 'No Attunement'}</div>
-                    </div>
-                    <button class="add-btn" style="padding: 4px 8px; font-size: 11px;" onclick="addFromSrd(${realIndex})">+ Add</button>
-                `;
+                    <div><div class="srd-item-name">${item.trueName}</div><div class="srd-item-type">${item.type} | ${item.attune ? 'Requires Attunement' : 'No Attunement'}</div></div>
+                    <button class="add-btn" style="padding: 4px 8px; font-size: 11px;" onclick="addFromSrd(${realIndex})">+ Add</button>`;
                 container.appendChild(el);
             });
         }
-
         function addFromSrd(index) {
             const srd = SRD_ITEMS[index];
             state.items.unshift({
-                id: Date.now(), isIdentified: false, apparentName: srd.apparent,
-                trueName: srd.trueName, imageUrl: "", weight: srd.weight, description: srd.desc,
-                requiresAttunement: srd.attune, isAttuned: false, isEquipped: false,
-                owner: "Party Stash", secretKeeper: state.currentUser.name, 
-                isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: true 
+                id: Date.now(), isIdentified: false, apparentName: srd.apparent, trueName: srd.trueName, quantity: 1, isConsumable: false,
+                imageUrl: "", weight: srd.weight, description: srd.desc, requiresAttunement: srd.attune, isAttuned: false, isEquipped: false,
+                owner: "Party Stash", secretKeeper: state.currentUser.name, isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: true 
             });
-            closeSrdModal();
-            renderAll(); 
-            triggerAutoSave();
+            closeSrdModal(); renderAll(); triggerAutoSave();
         }
 
         // --- Helpers ---
@@ -556,67 +545,47 @@ function doPost(e) {
             return playerData.character ? `${playerData.name} (${playerData.character})` : playerData.name;
         }
 
-        function parseWeight(weightStr) {
+        function parseWeight(weightStr, qty) {
             const num = parseFloat(String(weightStr).replace(/[^\d.]/g, ''));
-            return isNaN(num) ? 0 : num;
+            return isNaN(num) ? 0 : num * (qty || 1);
         }
 
         // --- Login Logic ---
         function openLoginModal() {
             if (state.players.length === 0) {
-                alert("No players found. Please complete the Setup and Sync Data to load the roster.");
-                openSetup(); return;
+                alert("No players found. Please complete the Setup and Sync Data to load the roster."); openSetup(); return;
             }
             const select = document.getElementById('login-name');
             select.innerHTML = '';
             state.players.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.name; opt.innerText = getPlayerDisplayName(p);
-                select.appendChild(opt);
+                const opt = document.createElement('option'); opt.value = p.name; opt.innerText = getPlayerDisplayName(p); select.appendChild(opt);
             });
-            document.getElementById('login-pin').value = '';
-            loginModal.style.display = 'flex';
+            document.getElementById('login-pin').value = ''; loginModal.style.display = 'flex';
         }
         
         function closeLoginModal() { loginModal.style.display = 'none'; }
-
         function submitLogin(asDm) {
             const name = document.getElementById('login-name').value;
             const pin = document.getElementById('login-pin').value;
             const user = state.players.find(p => p.name === name && p.pin === pin);
-            
             if (user) {
-                state.currentUser = user; state.isDmMode = asDm;
-                closeLoginModal(); renderAll();
+                state.currentUser = user; state.isDmMode = asDm; closeLoginModal(); renderAll();
             } else { alert("Incorrect PIN. (Hint for Demo: Try '1111' for Hank, or '7777' for Dungeon Master)"); }
         }
-
         function handleLogout() {
-            state.currentUser = null; state.isDmMode = false;
-            state.items.forEach(item => item.isEditing = false);
-            renderAll();
+            state.currentUser = null; state.isDmMode = false; state.items.forEach(item => item.isEditing = false); renderAll();
         }
-
         function toggleViewMode() {
             if (state.isDmMode) {
-                state.isDmMode = false;
-                state.items.forEach(i => i.isEditing = false);
-                renderAll();
+                state.isDmMode = false; state.items.forEach(i => i.isEditing = false); renderAll();
             } else {
                 const pin = prompt(`Enter PIN for ${state.currentUser.name} to unlock DM View:`);
-                if (pin === state.currentUser.pin) {
-                    state.isDmMode = true;
-                    renderAll();
-                } else if (pin !== null) {
-                    alert("Incorrect PIN.");
-                }
+                if (pin === state.currentUser.pin) { state.isDmMode = true; renderAll(); } else if (pin !== null) { alert("Incorrect PIN."); }
             }
         }
 
         // --- Search Logic ---
-        function handleSearch(query) {
-            state.searchQuery = query.toLowerCase(); renderAll();
-        }
+        function handleSearch(query) { state.searchQuery = query.toLowerCase(); renderAll(); }
 
         // --- DM Quick Actions ---
         function quickAddPotion(type) {
@@ -630,98 +599,94 @@ function doPost(e) {
             if(type === 'Supreme') desc += "Regain 10d4 + 20 HP.";
 
             state.items.unshift({
-                id: Date.now(), isIdentified: true, apparentName: apparent,
-                trueName: trueName, imageUrl: "", weight: "0.5 lbs", description: desc,
-                requiresAttunement: false, isAttuned: false, isEquipped: false,
-                owner: "Party Stash", secretKeeper: state.currentUser.name, 
-                isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false 
+                id: Date.now(), isIdentified: true, apparentName: apparent, trueName: trueName, quantity: 1, isConsumable: true,
+                imageUrl: "", weight: "0.5 lbs", description: desc, requiresAttunement: false, isAttuned: false, isEquipped: false,
+                owner: "Party Stash", secretKeeper: state.currentUser.name, isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false 
             });
             renderAll(); triggerAutoSave();
         }
 
         function openEncumbranceModal() {
             let html = `<table class="encumbrance-table"><tr><th>Character / Storage</th><th>Equipped / Worn</th><th>Total Inventory Weight</th></tr>`;
-            
             const allEntities = ["Party Stash", ...state.players.map(p => p.name)];
-            
             allEntities.forEach(entity => {
                 let entityItems = state.items.filter(i => i.owner === entity);
                 let totalWeight = 0; let equippedWeight = 0;
-                
                 entityItems.forEach(item => {
-                    let w = parseWeight(item.weight);
+                    let w = parseWeight(item.weight, item.quantity);
                     totalWeight += w;
                     if (item.isEquipped) equippedWeight += w;
                 });
-
                 if (totalWeight > 0) {
                     const displayName = entity === "Party Stash" ? "Party Stash" : getPlayerDisplayName(state.players.find(p=>p.name === entity));
                     html += `<tr><td><strong>${displayName}</strong></td><td>${equippedWeight.toFixed(2)} lbs</td><td>${totalWeight.toFixed(2)} lbs</td></tr>`;
                 }
             });
-            
             html += `</table>`;
-            document.getElementById('encumbrance-content').innerHTML = html;
-            encumbranceModal.style.display = 'flex';
+            document.getElementById('encumbrance-content').innerHTML = html; encumbranceModal.style.display = 'flex';
         }
-
         function closeEncumbranceModal() { encumbranceModal.style.display = 'none'; }
 
         // --- Player Inventory Actions ---
         function togglePlayerItemAction(id, field) {
-            const item = state.items.find(i => i.id === id);
-            if (item) {
-                item[field] = !item[field];
-                renderAll(); triggerAutoSave();
-            }
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item) { item[field] = !item[field]; renderAll(); triggerAutoSave(); }
         }
-
         function takeItem(id) { updateItem(id, 'owner', state.currentUser.name); renderAll(); triggerAutoSave(); }
         function returnItem(id) { 
-            const item = state.items.find(i => i.id === id);
-            if (item) {
-                item.owner = 'Party Stash';
-                item.isEquipped = false; 
-                renderAll(); triggerAutoSave();
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item) { item.owner = 'Party Stash'; item.isEquipped = false; renderAll(); triggerAutoSave(); }
+        }
+
+        // --- Consumable Logic (Phantoms & Reals) ---
+        function incrementQuantity(id, phantomDataStr) {
+            if (String(id).startsWith('phantom-')) {
+                const data = JSON.parse(decodeURIComponent(phantomDataStr));
+                state.items.unshift({
+                    id: Date.now(), isIdentified: true, apparentName: data.apparentName, trueName: data.trueName, quantity: 1, isConsumable: true,
+                    imageUrl: "", weight: data.weight, description: data.description, requiresAttunement: false, isAttuned: false, isEquipped: false,
+                    owner: state.currentUser.name, secretKeeper: "Shared", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false 
+                });
+            } else {
+                const item = state.items.find(i => String(i.id) === String(id));
+                if (item) item.quantity = (item.quantity !== undefined ? item.quantity : 1) + 1;
             }
+            renderAll(); triggerAutoSave();
+        }
+
+        function decrementQuantity(id) {
+            if (String(id).startsWith('phantom-')) return;
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item && item.quantity > 0) { item.quantity--; renderAll(); triggerAutoSave(); }
         }
 
         // --- Multi-DM Cryptography ---
         function getDisplayText(text, keeperName, isPublic = false) {
             if (!text) return ""; 
             if (isPublic && !text.startsWith("ENC::")) return text;
-
             const isShared = (keeperName === "Shared");
             const canViewSecret = state.isDmMode && state.currentUser && (isShared || state.currentUser.name === keeperName);
-
             if (!text.startsWith("ENC::")) {
                 if (!canViewSecret && !isPublic) return `🔒 [Secret kept by ${keeperName}]`;
                 return text;
             }
-            
             if (!canViewSecret && !isPublic) return `🔒 [Secret kept by ${keeperName}]`;
-
             try {
                 const key = isShared ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin;
-                const bytes = CryptoJS.AES.decrypt(text.replace("ENC::", ""), key);
-                return bytes.toString(CryptoJS.enc.Utf8) || `🔒 [Decryption Failed]`;
+                return CryptoJS.AES.decrypt(text.replace("ENC::", ""), key).toString(CryptoJS.enc.Utf8) || `🔒 [Decryption Failed]`;
             } catch(e) { return `🔒 [Encryption Error]`; }
         }
 
         function getEditableText(text, keeperName, isPublic = false) {
             if (!text) return "";
             if (isPublic && !text.startsWith("ENC::")) return text;
-
             const isShared = (keeperName === "Shared");
             const canViewSecret = state.currentUser && (isShared || state.currentUser.name === keeperName);
-
             if (!text.startsWith("ENC::")) {
                 if (!canViewSecret && !isPublic) return `🔒 Encrypted by ${keeperName}`;
                 return text;
             }
-
             if (!canViewSecret && !isPublic) return `🔒 Encrypted by ${keeperName}`;
-
             try {
                 const key = isShared ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin;
                 return CryptoJS.AES.decrypt(text.replace("ENC::", ""), key).toString(CryptoJS.enc.Utf8);
@@ -729,15 +694,13 @@ function doPost(e) {
         }
 
         function makeShared(id) {
-            const item = state.items.find(i => i.id === id);
+            const item = state.items.find(i => String(i.id) === String(id));
             if (item && item.secretKeeper === state.currentUser.name) {
                 item.trueName = getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName;
                 item.description = getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description;
                 item.curseDetectDC = getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC;
                 item.curseDetails = getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails;
-                
-                item.secretKeeper = "Shared";
-                renderAll(); triggerAutoSave();
+                item.secretKeeper = "Shared"; renderAll(); triggerAutoSave();
             }
         }
 
@@ -775,23 +738,13 @@ function doPost(e) {
                     if (!outCurseDetails.startsWith("ENC::")) outCurseDetails = "ENC::" + CryptoJS.AES.encrypt(outCurseDetails, encKey).toString();
                 }
 
-                // Explicitly defining the row order here guarantees clean columns in Sheets!
                 return {
-                    id: item.id,
-                    apparentName: item.apparentName || "",
-                    trueName: outTrueName,
-                    imageUrl: item.imageUrl || "",
-                    owner: item.owner || "Party Stash",
-                    weight: item.weight || "-",
-                    isEquipped: item.isEquipped ? true : false,
-                    requiresAttunement: item.requiresAttunement ? true : false,
-                    isAttuned: item.isAttuned ? true : false,
-                    isIdentified: item.isIdentified ? true : false,
-                    description: outDesc,
-                    isCurseRevealed: item.isCurseRevealed ? true : false,
-                    curseDetectDC: outCurseDC,
-                    curseDetails: outCurseDetails,
-                    secretKeeper: item.secretKeeper || ""
+                    id: item.id, apparentName: item.apparentName || "", trueName: outTrueName, imageUrl: item.imageUrl || "",
+                    owner: item.owner || "Party Stash", weight: item.weight || "-", quantity: item.quantity !== undefined ? item.quantity : 1,
+                    isConsumable: item.isConsumable ? true : false, isEquipped: item.isEquipped ? true : false,
+                    requiresAttunement: item.requiresAttunement ? true : false, isAttuned: item.isAttuned ? true : false,
+                    isIdentified: item.isIdentified ? true : false, description: outDesc, isCurseRevealed: item.isCurseRevealed ? true : false,
+                    curseDetectDC: outCurseDC, curseDetails: outCurseDetails, secretKeeper: item.secretKeeper || ""
                 };
             });
 
@@ -821,15 +774,15 @@ function doPost(e) {
                 if (data.items && data.items.length > 0) {
                     state.items = data.items.map(item => ({
                         ...item,
+                        quantity: item.quantity !== undefined ? parseInt(item.quantity) : 1,
+                        isConsumable: String(item.isConsumable).toLowerCase() === 'true',
                         isEquipped: String(item.isEquipped).toLowerCase() === 'true',
                         isAttuned: String(item.isAttuned).toLowerCase() === 'true',
                         isIdentified: String(item.isIdentified).toLowerCase() === 'true',
                         requiresAttunement: String(item.requiresAttunement).toLowerCase() === 'true',
                         isCurseRevealed: String(item.isCurseRevealed).toLowerCase() === 'true'
                     }));
-                } else {
-                    state.items = [];
-                }
+                } else { state.items = []; }
             } catch(e) { console.error("Load error:", e); }
             
             btn.innerText = "📥 Sync Data"; btn.disabled = false; renderAll();
@@ -867,47 +820,53 @@ function doPost(e) {
         function addNewItem() {
             if (!state.isDmMode) return;
             state.items.unshift({
-                id: Date.now(), isIdentified: false, apparentName: "New Mysterious Item",
-                trueName: "", imageUrl: "", weight: "-", description: "",
-                requiresAttunement: false, isAttuned: false, isEquipped: false,
-                owner: "Party Stash", secretKeeper: state.currentUser.name, 
-                isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: true 
+                id: Date.now(), isIdentified: false, apparentName: "New Mysterious Item", trueName: "", quantity: 1, isConsumable: false,
+                imageUrl: "", weight: "-", description: "", requiresAttunement: false, isAttuned: false, isEquipped: false,
+                owner: "Party Stash", secretKeeper: state.currentUser.name, isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: true 
             });
             renderAll(); triggerAutoSave();
         }
 
         function removeItem(id) {
-            const item = state.items.find(i => i.id === id);
-            if (item && item.secretKeeper !== "Shared" && item.secretKeeper !== state.currentUser.name && state.currentUser.name !== 'Party Stash') {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (!item) return;
+
+            const isOwnEmptyConsumable = !state.isDmMode && item.owner === state.currentUser.name && item.isConsumable && item.quantity === 0;
+            const isKeeper = item.secretKeeper === "Shared" || (state.currentUser && item.secretKeeper === state.currentUser.name);
+
+            if (!state.isDmMode && !isOwnEmptyConsumable) {
+                return alert("Players cannot delete items from the database.");
+            }
+            if (state.isDmMode && !isKeeper && state.currentUser.name !== 'Party Stash') {
                 return alert(`Only ${item.secretKeeper} can delete this item.`);
             }
             if(confirm("Delete this item?")) {
-                state.items = state.items.filter(item => item.id !== id);
+                state.items = state.items.filter(item => String(item.id) !== String(id));
                 renderAll(); triggerAutoSave();
             }
         }
 
         function toggleEdit(id) {
-            const item = state.items.find(i => i.id === id);
+            const item = state.items.find(i => String(i.id) === String(id));
             if (item) { item.isEditing = !item.isEditing; renderAll(); }
         }
 
         function toggleIdentified(id) {
-            const item = state.items.find(i => i.id === id);
+            const item = state.items.find(i => String(i.id) === String(id));
             if (item && (item.secretKeeper === "Shared" || item.secretKeeper === state.currentUser.name)) { 
                 item.isIdentified = !item.isIdentified; renderAll(); triggerAutoSave();
             }
         }
 
         function toggleCurse(id) {
-            const item = state.items.find(i => i.id === id);
+            const item = state.items.find(i => String(i.id) === String(id));
             if (item && (item.secretKeeper === "Shared" || item.secretKeeper === state.currentUser.name)) { 
                 item.isCurseRevealed = !item.isCurseRevealed; renderAll(); triggerAutoSave();
             }
         }
 
         function updateItem(id, field, value) {
-            const item = state.items.find(i => i.id === id);
+            const item = state.items.find(i => String(i.id) === String(id));
             if (item) { item[field] = value; triggerAutoSave(); }
         }
 
@@ -920,38 +879,29 @@ function doPost(e) {
             const userInfo = document.getElementById('user-info-display');
             const userNameDisplay = document.getElementById('display-user-name');
             const dmToolbar = document.getElementById('dm-toolbar');
-            
             const titleEl = document.getElementById('main-page-title');
             const setupBtn = document.getElementById('setup-btn-header');
             const switchModeBtn = document.getElementById('switch-mode-btn');
 
             // Header UI states
             if (state.scriptUrl) {
-                titleEl.innerHTML = `Item Tracker`;
-                setupBtn.innerHTML = `⚙️✅ Setup`;
-                setupBtn.classList.add('configured');
+                titleEl.innerHTML = `Item Tracker`; setupBtn.innerHTML = `⚙️✅ Setup`; setupBtn.classList.add('configured');
             } else {
-                titleEl.innerHTML = `Item Tracker <span style="font-size: 12px; color: #e67e22;">[Cartoon Demo Data]</span>`;
-                setupBtn.innerHTML = `⚙️ Setup`;
-                setupBtn.classList.remove('configured');
+                titleEl.innerHTML = `Item Tracker <span style="font-size: 12px; color: #e67e22;">[Cartoon Demo Data]</span>`; setupBtn.innerHTML = `⚙️ Setup`; setupBtn.classList.remove('configured');
             }
 
             if (state.currentUser) {
                 loginBtn.style.display = 'none'; logoutBtn.style.display = 'block'; 
                 userInfo.style.display = 'block'; switchModeBtn.style.display = 'block';
-                
                 const role = state.isDmMode ? "DM" : "Player";
                 userNameDisplay.innerText = `${getPlayerDisplayName(state.currentUser)} (${role})`;
                 
                 if (state.isDmMode) { 
                     addBtn.style.display = 'block'; srdBtn.style.display = 'block'; dmToolbar.style.display = 'flex'; 
-                    switchModeBtn.innerHTML = '👤 Switch to Player View';
-                    switchModeBtn.style.background = '#e67e22';
-                }
-                else { 
+                    switchModeBtn.innerHTML = '👤 Switch to Player View'; switchModeBtn.style.background = '#e67e22';
+                } else { 
                     addBtn.style.display = 'none'; srdBtn.style.display = 'none'; dmToolbar.style.display = 'none'; 
-                    switchModeBtn.innerHTML = '👁️ Switch to DM View';
-                    switchModeBtn.style.background = '#9b59b6';
+                    switchModeBtn.innerHTML = '👁️ Switch to DM View'; switchModeBtn.style.background = '#9b59b6';
                 }
             } else {
                 loginBtn.style.display = 'block'; logoutBtn.style.display = 'none'; userInfo.style.display = 'none';
@@ -959,19 +909,27 @@ function doPost(e) {
             }
 
             gridEl.innerHTML = '';
-            
-            if (state.items.length === 0) {
-                gridEl.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #777;">No loot found. Sync Data or log in as a DM to add items.</div>`;
-                return;
-            }
-
             let displayItems = [...state.items];
+
+            // INJECT PHANTOM POTIONS FOR CURRENT PLAYER
+            if (state.currentUser && !state.isDmMode) {
+                PHANTOM_POTIONS.forEach(p => {
+                    const exists = displayItems.find(i => i.owner === state.currentUser.name && i.trueName === p.trueName);
+                    if (!exists) {
+                        displayItems.push({
+                            id: 'phantom-' + p.trueName.replace(/\s+/g, ''), isIdentified: true, apparentName: p.apparentName, trueName: p.trueName,
+                            description: p.description, weight: p.weight, quantity: 0, isConsumable: true, isEquipped: false, requiresAttunement: false,
+                            isAttuned: false, owner: state.currentUser.name, secretKeeper: "Shared", isCurseRevealed: false, curseDetectDC: "", curseDetails: "",
+                            imageUrl: "", isPhantom: true, phantomDataStr: encodeURIComponent(JSON.stringify(p))
+                        });
+                    }
+                });
+            }
             
             // Apply Search Filter
             if (state.searchQuery.trim() !== "") {
                 displayItems = displayItems.filter(item => {
                     let searchableText = (item.apparentName || "").toLowerCase();
-                    
                     if (item.isIdentified || state.isDmMode) {
                         searchableText += " " + (getDisplayText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName || "").toLowerCase();
                         searchableText += " " + (getDisplayText(item.description, item.secretKeeper, item.isIdentified) || item.description || "").toLowerCase();
@@ -979,7 +937,6 @@ function doPost(e) {
                     if (item.isCurseRevealed || state.isDmMode) {
                         searchableText += " " + (getDisplayText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails || "").toLowerCase();
                     }
-                    
                     searchableText += " " + (item.owner || "Unclaimed").toLowerCase();
                     return searchableText.includes(state.searchQuery);
                 });
@@ -1001,7 +958,7 @@ function doPost(e) {
             }
 
             if (displayItems.length === 0) {
-                gridEl.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #777;">No items match your search.</div>`;
+                gridEl.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #777;">No items match your search or inventory is empty.</div>`;
                 return;
             }
 
@@ -1013,145 +970,4 @@ function doPost(e) {
 
             displayItems.forEach(item => {
                 const card = document.createElement('div');
-                card.className = `loot-card ${item.isIdentified ? 'identified' : ''} ${item.isCurseRevealed ? 'cursed' : ''}`;
-
-                const isKeeper = state.isDmMode && state.currentUser && (item.secretKeeper === "Shared" || state.currentUser.name === item.secretKeeper);
-                
-                let titleToShow = item.apparentName || "Unknown Item";
-                let subtitleHtml = ""; let descHtml = ""; let curseHtml = "";
-
-                // Decrypt core properties based on identification
-                if (item.isIdentified) {
-                    titleToShow = getDisplayText(item.trueName, item.secretKeeper, true) || item.trueName || item.apparentName;
-                    const plainDesc = getDisplayText(item.description, item.secretKeeper, true) || item.description;
-                    descHtml = plainDesc ? plainDesc.replace(/\n/g, '<br>') : "";
-                } else if (state.isDmMode) {
-                    const plainTrueName = getDisplayText(item.trueName, item.secretKeeper, false) || item.trueName;
-                    const plainDesc = getDisplayText(item.description, item.secretKeeper, false) || item.description;
-                    subtitleHtml = `<div class="true-name-reveal">True Name: ${plainTrueName}</div>`;
-                    descHtml = plainDesc ? plainDesc.replace(/\n/g, '<br>') : "";
-                } else {
-                    descHtml = "<div class='hidden-text'>Item properties are unknown until identified.</div>";
-                }
-
-                // Identify if a curse exists
-                let plainDC = ""; let plainCurse = ""; let hasCurse = false;
-                if (state.isDmMode || item.isCurseRevealed) {
-                    plainDC = getDisplayText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC || "";
-                    plainCurse = getDisplayText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails || "";
-                    if (plainDC.trim() !== "" || plainCurse.trim() !== "") {
-                        hasCurse = true;
-                    }
-                }
-
-                // Render Curse HTML if applicable
-                if (hasCurse) {
-                    if (item.isCurseRevealed) {
-                        curseHtml = `<div class="curse-box"><strong>💀 Curse Revealed</strong><br><em style="font-size: 11px; color:#aaa;">Identify DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
-                    } else if (state.isDmMode) {
-                        curseHtml = `<div class="curse-box hidden"><strong>🤫 Hidden Curse (DM Only)</strong><br><em style="font-size: 11px; color:#aaa;">Identify DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
-                    }
-                }
-
-                const imgHtml = item.imageUrl ? `<img src="${item.imageUrl}" alt="Item">` : `<div class="image-placeholder">No Image URL</div>`;
-                const ownerData = state.players.find(p => p.name === item.owner);
-                const ownerDisplay = ownerData ? getPlayerDisplayName(ownerData) : (item.owner || "Unclaimed");
-
-                // Determine Player Actions (Take/Return/Equip/Attune)
-                let playerActionsHtml = "";
-                if (state.currentUser && !state.isDmMode) {
-                    if (item.owner === "Party Stash") {
-                        playerActionsHtml = `<button onclick="takeItem(${item.id})" style="background: #27ae60; width: 100%;">🎒 Take Item</button>`;
-                    } else if (item.owner === state.currentUser.name) {
-                        playerActionsHtml += `<button onclick="togglePlayerItemAction(${item.id}, 'isEquipped')" style="background: ${item.isEquipped ? '#7f8c8d' : '#34495e'}; flex:1;">${item.isEquipped ? '👕 Unequip' : '👕 Equip'}</button>`;
-                        if (item.requiresAttunement) {
-                            playerActionsHtml += `<button onclick="togglePlayerItemAction(${item.id}, 'isAttuned')" style="background: ${item.isAttuned ? '#8e44ad' : '#9b59b6'}; flex:1;">${item.isAttuned ? '🔗 Break Attunement' : '🔗 Attune'}</button>`;
-                        }
-                        playerActionsHtml += `<button onclick="returnItem(${item.id})" style="background: #e67e22; flex:1;">📦 Return</button>`;
-                    }
-                }
-                
-                let shareButtonHtml = "";
-                if (item.secretKeeper === "Shared") {
-                    shareButtonHtml = `<div style="font-size:12px; color:#2ecc71; text-align:center; width:100%; padding: 10px 0; border-top: 1px dashed #444; margin-top: 10px;">🔓 Shared with all DMs</div>`;
-                } else if (state.currentUser && state.currentUser.name === item.secretKeeper) {
-                    shareButtonHtml = `<div style="border-top: 1px dashed #444; margin-top: 10px; padding-top: 10px; width: 100%;"><button onclick="makeShared(${item.id})" style="background: #9b59b6; width: 100%;">🔓 Allow All DMs to Edit</button></div>`;
-                }
-
-                const displayHtml = `
-                    <div class="image-container">${imgHtml}</div>
-                    <div class="card-content">
-                        <div><h3 class="item-title">${titleToShow}</h3>${subtitleHtml}</div>
-                        <div class="badges">
-                            <span class="badge owner">🎒 ${ownerDisplay}</span>
-                            <span class="badge">⚖️ ${item.weight || '-'}</span>
-                            ${item.isEquipped ? '<span class="badge equipped">👕 Equipped</span>' : ''}
-                            ${item.requiresAttunement && !item.isAttuned ? '<span class="badge">🔮 Requires Attunement</span>' : ''}
-                            ${item.isAttuned ? '<span class="badge attunement">🔗 Attuned</span>' : ''}
-                            ${item.isIdentified ? '<span class="badge" style="background:#27ae60;">👁️ Identified</span>' : '<span class="badge" style="background:#7f8c8d;">❓ Unidentified</span>'}
-                            ${item.isCurseRevealed ? '<span class="badge" style="background:#c0392b;">💀 Cursed</span>' : ''}
-                            ${item.secretKeeper ? `<span class="badge keeper">GM: ${item.secretKeeper}</span>` : ''}
-                        </div>
-                        <div class="description-box">${descHtml}</div>
-                        ${curseHtml}
-                        
-                        ${playerActionsHtml ? `<div class="card-actions" style="border-top: none;">${playerActionsHtml}</div>` : ''}
-                        
-                        ${state.isDmMode ? `
-                            <div class="card-actions">
-                                <button onclick="toggleIdentified(${item.id})" style="background: ${item.isIdentified ? '#f39c12' : '#2ecc71'}; flex: 1;" ${!isKeeper ? 'disabled title="Only the original DM can identify this"' : ''}>
-                                    ${item.isIdentified ? 'Mark Unidentified' : 'Mark Identified'}
-                                </button>
-                                ${hasCurse ? `
-                                <button onclick="toggleCurse(${item.id})" style="background: ${item.isCurseRevealed ? '#c0392b' : '#34495e'}; flex: 1;" ${!isKeeper ? 'disabled title="Only the original DM can reveal the curse"' : ''}>
-                                    ${item.isCurseRevealed ? 'Hide Curse' : 'Reveal Curse'}
-                                </button>` : ''}
-                                <button onclick="toggleEdit(${item.id})" style="flex: 1;">Edit Item</button>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-
-                const selectOptions = rosterOptionsHtml.map(opt => `<option value="${opt.val}" ${item.owner === opt.val ? "selected" : ""}>${opt.label}</option>`).join("");
-
-                const editHtml = `
-                    <div class="edit-form ${item.isEditing && state.isDmMode ? 'active' : ''}">
-                        <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Item</h3>
-                        <div class="form-group"><label>Apparent Name (Public)</label><input type="text" value="${item.apparentName}" oninput="updateItem(${item.id}, 'apparentName', this.value)"></div>
-                        <div class="form-group"><label>True Name (Secret)</label><input type="text" value="${getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName}" oninput="updateItem(${item.id}, 'trueName', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
-                        <div class="form-group" style="flex-grow: 1;"><label>Description & Abilities (Secret)</label><textarea oninput="updateItem(${item.id}, 'description', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description}</textarea></div>
-                        
-                        <div style="border-top: 1px dashed #e74c3c; margin-top: 5px; padding-top: 10px;">
-                            <div class="form-group"><label style="color: #e74c3c;">Identify Spell DC (Secret)</label><input type="text" placeholder="e.g., 15" value="${getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC}" oninput="updateItem(${item.id}, 'curseDetectDC', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
-                            <div class="form-group"><label style="color: #e74c3c;">Curse Details (Secret)</label><textarea oninput="updateItem(${item.id}, 'curseDetails', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails}</textarea></div>
-                        </div>
-
-                        <div class="form-group"><label>Image (Upload or Paste URL)</label>
-                            <div style="display:flex; gap: 10px;">
-                                <input type="text" value="${item.imageUrl}" placeholder="URL..." oninput="updateItem(${item.id}, 'imageUrl', this.value)" style="flex-grow:1; margin:0;">
-                                <label class="add-btn" style="cursor:pointer; display:flex; align-items:center; border-radius:4px; padding: 0 10px;">📁 Upload<input type="file" style="display:none;" accept="image/*" onchange="handleImageUpload(${item.id}, this)"></label>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group"><label>Owner</label><select onchange="updateItem(${item.id}, 'owner', this.value)">${selectOptions}</select></div>
-                            <div class="form-group"><label>Weight</label><input type="text" value="${item.weight}" oninput="updateItem(${item.id}, 'weight', this.value)"></div>
-                        </div>
-                        <div class="form-row" style="margin-top: 10px;">
-                            <div class="checkbox-group"><input type="checkbox" id="equip-${item.id}" ${item.isEquipped ? 'checked' : ''} onchange="updateItem(${item.id}, 'isEquipped', this.checked)"><label for="equip-${item.id}">Equipped/Worn</label></div>
-                            <div class="checkbox-group"><input type="checkbox" id="reqatt-${item.id}" ${item.requiresAttunement ? 'checked' : ''} onchange="updateItem(${item.id}, 'requiresAttunement', this.checked)"><label for="reqatt-${item.id}">Req. Attunement</label></div>
-                            <div class="checkbox-group"><input type="checkbox" id="attune-${item.id}" ${item.isAttuned ? 'checked' : ''} onchange="updateItem(${item.id}, 'isAttuned', this.checked)"><label for="attune-${item.id}">Is Attuned</label></div>
-                        </div>
-                        
-                        ${shareButtonHtml}
-                        
-                        <div class="card-actions" style="margin-top: 10px;"><button class="del-btn" onclick="removeItem(${item.id})" ${!isKeeper && item.secretKeeper !== "Shared" ? 'disabled' : ''}>Delete</button><button class="add-btn" onclick="toggleEdit(${item.id});">Done</button></div>
-                    </div>
-                `;
-
-                card.innerHTML = displayHtml + editHtml;
-                gridEl.appendChild(card);
-            });
-        }
-    </script>
-</body>
-</html>
+                card.className = `loot-card ${item.isIdentified ? 'identified' :

@@ -239,7 +239,6 @@
 
             <div id="setup-instructions-container">
                 <p style="font-size: 13px; color: #ccc;">To save data, this app connects to a Google Sheet using Google Apps Script.</p>
-                
                 <ol class="setup-steps">
                     <li>Create a new <a href="https://sheets.new" target="_blank" style="color:#3498db;">Google Sheet</a>.</li>
                     <li>At the bottom left, add a new tab and name it exactly: <strong>Players</strong>.</li>
@@ -247,7 +246,7 @@
                         <em>Col A: Player Name | Col B: PIN | Col C: Character Name</em>
                     </li>
                     <li>In the top menu, click <strong>Extensions > Apps Script</strong>.</li>
-                    <li>Delete any default code and paste the script below. <strong style="color:#f39c12;">(Be sure to deploy a New Version if updating!)</strong></li>
+                    <li>Delete any default code and paste the script below.</li>
                     <li>Click <strong>Deploy > New deployment</strong> (or Manage Deployments > New Version).</li>
                     <li>Select type <strong>Web app</strong>. Set 'Execute as' to <strong>Me</strong> and 'Who has access' to <strong>Anyone</strong>.</li>
                     <li>Click Deploy, Authorize the permissions, and copy the generated <strong>Web app URL</strong>.</li>
@@ -275,7 +274,7 @@ function doGet(e) {
     if (s) {
       let data = s.getDataRange().getValues();
       if (data.length === 1 && typeof data[0][0] === 'string' && data[0][0].trim().startsWith('[')) {
-        items = JSON.parse(data[0][0]); // Auto-migrate old JSON format
+        items = JSON.parse(data[0][0]); 
       } else if (data.length > 1) {
         let headers = data[0];
         for (let i = 1; i < data.length; i++) {
@@ -339,14 +338,27 @@ function doPost(e) {
                 </div>
             </div>
             
-            <div style="margin-top: 15px; border-top: 1px dashed #555; padding-top: 15px;">
+            <div id="setup-input-view" style="margin-top: 15px; border-top: 1px dashed #555; padding-top: 15px;">
                 <label style="font-size: 13px; font-weight: bold; color: #fff;">Paste Your Web App URL Here:</label>
                 <input type="text" id="script-url-input" placeholder="https://script.google.com/macros/s/...">
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+                    <button style="background: #555;" onclick="closeSetup()">Close</button>
+                    <button class="add-btn" onclick="saveSetup()">Save & Sync</button>
+                </div>
             </div>
-            
-            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
-                <button style="background: #555;" onclick="closeSetup()">Close</button>
-                <button class="add-btn" onclick="saveSetup()">Save & Sync</button>
+
+            <div id="setup-configured-view" style="display: none; text-align: center; margin-top: 20px; border-top: 1px dashed #555; padding-top: 20px;">
+                <h3 style="color: #2ecc71; margin: 0 0 10px 0;">✅ Connected to Cloud</h3>
+                <p style="font-size: 13px; color: #ccc; margin-bottom: 15px;">Have other players scan this QR code or use the link below to instantly join your session!</p>
+                
+                <img id="qr-code-img" src="" alt="QR Code" style="margin: 0 auto; background: white; padding: 10px; border-radius: 8px; width: 150px; height: 150px;">
+                
+                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <button onclick="copyJoinLink()" style="background: #3498db;">🔗 Copy Join Link</button>
+                    <button style="background: #e74c3c;" onclick="disconnectCloud()">Disconnect App</button>
+                    <button style="background: #555;" onclick="closeSetup()">Close</button>
+                </div>
+                <p style="font-size: 11px; color: #777; margin-top: 10px;">* Note: The app must be hosted online (not as a local file) for the QR code to work on mobile devices.</p>
             </div>
         </div>
     </div>
@@ -396,9 +408,9 @@ function doPost(e) {
         const state = {
             currentUser: null,
             isDmMode: false,
-            scriptUrl: localStorage.getItem('lootTrackerScriptUrl') || "",
+            scriptUrl: "",
             searchQuery: "",
-            lastCloudHash: "", // Used to prevent screen flickering during Live Sync
+            lastCloudHash: "", 
             players: [], 
             items: []
         };
@@ -472,7 +484,20 @@ function doPost(e) {
         const srdModal = document.getElementById('srd-modal');
 
         window.onload = () => {
+            // Check for Auto-Join via URL Parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const syncUrl = urlParams.get('sync');
+            
+            if (syncUrl) {
+                state.scriptUrl = decodeURIComponent(syncUrl);
+                localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
+                window.history.replaceState({}, document.title, window.location.pathname); // Clean the address bar
+            } else {
+                state.scriptUrl = localStorage.getItem('lootTrackerScriptUrl') || "";
+            }
+
             document.getElementById('script-url-input').value = state.scriptUrl;
+            
             if(state.scriptUrl) { loadFromCloud(); } 
             else { loadDemoData(); renderAll(); }
         };
@@ -481,10 +506,29 @@ function doPost(e) {
         function openSetup() { 
             const container = document.getElementById('setup-instructions-container');
             const toggleBtn = document.getElementById('toggle-instructions-btn');
+            const configuredView = document.getElementById('setup-configured-view');
+            const inputView = document.getElementById('setup-input-view');
+            
             if (state.scriptUrl) {
-                container.style.display = 'none'; toggleBtn.style.display = 'block'; toggleBtn.innerText = '📖 Show Setup Instructions';
+                container.style.display = 'none'; 
+                toggleBtn.style.display = 'block'; 
+                toggleBtn.innerText = '📖 Show Setup Instructions';
+                
+                configuredView.style.display = 'block';
+                inputView.style.display = 'none';
+                
+                // Generate QR Code URL
+                const baseUrl = window.location.href.split('?')[0];
+                const joinUrl = baseUrl + "?sync=" + encodeURIComponent(state.scriptUrl);
+                const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" + encodeURIComponent(joinUrl);
+                document.getElementById('qr-code-img').src = qrUrl;
+                
             } else {
-                container.style.display = 'block'; toggleBtn.style.display = 'none';
+                container.style.display = 'block'; 
+                toggleBtn.style.display = 'none';
+                
+                configuredView.style.display = 'none';
+                inputView.style.display = 'block';
             }
             setupScreen.style.display = 'flex'; 
         }
@@ -500,6 +544,7 @@ function doPost(e) {
         }
 
         function closeSetup() { setupScreen.style.display = 'none'; }
+        
         function saveSetup() {
             state.scriptUrl = document.getElementById('script-url-input').value.trim();
             localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
@@ -507,10 +552,30 @@ function doPost(e) {
             state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
             if (state.scriptUrl) { loadFromCloud(); } else { loadDemoData(); renderAll(); }
         }
+
         function copyScriptCode() {
             const code = document.getElementById('app-script-code').innerText;
             navigator.clipboard.writeText(code);
             alert("Apps Script code copied to clipboard!");
+        }
+
+        function disconnectCloud() {
+            if(confirm("Are you sure you want to disconnect? You will return to the Demo Data.")) {
+                state.scriptUrl = "";
+                localStorage.removeItem('lootTrackerScriptUrl');
+                document.getElementById('script-url-input').value = "";
+                closeSetup();
+                state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
+                loadDemoData();
+                renderAll();
+            }
+        }
+
+        function copyJoinLink() {
+            const baseUrl = window.location.href.split('?')[0];
+            const joinUrl = baseUrl + "?sync=" + encodeURIComponent(state.scriptUrl);
+            navigator.clipboard.writeText(joinUrl);
+            alert("Join Link copied to clipboard!");
         }
 
         // --- Live Sync Logic ---
@@ -525,17 +590,12 @@ function doPost(e) {
                 btn.innerHTML = '🔄 Live Sync: OFF';
                 btn.style.background = '#555';
             } else {
-                // Poll every 15 seconds
                 liveSyncInterval = setInterval(() => {
-                    // Safety check: Don't sync if anyone is actively typing in an edit window
-                    if (!state.items.some(i => i.isEditing)) {
-                        loadFromCloud(true); 
-                    }
+                    if (!state.items.some(i => i.isEditing)) { loadFromCloud(true); }
                 }, 15000);
-                
                 btn.innerHTML = '🔄 Live Sync: ON';
                 btn.style.background = '#27ae60';
-                loadFromCloud(true); // Fire immediately once
+                loadFromCloud(true); 
             }
         }
 
@@ -802,7 +862,6 @@ function doPost(e) {
                 
                 if (data.players) state.players = data.players;
                 if (data.items && data.items.length > 0) {
-                    // Check if new data is actually different to prevent flickering
                     const newDataHash = JSON.stringify(data.items);
                     if (silent && newDataHash === state.lastCloudHash) {
                         return; // Skip render, nothing changed

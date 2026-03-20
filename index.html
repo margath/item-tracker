@@ -38,16 +38,6 @@
             font-size: 11px; overflow-x: auto; color: #a6e22e; cursor: text;
         }
 
-        /* SRD List Styles */
-        .srd-item {
-            padding: 12px 15px; border-bottom: 1px solid #333; display: flex; 
-            justify-content: space-between; align-items: center; background: #1e1e24;
-            transition: background 0.2s; cursor: pointer;
-        }
-        .srd-item:hover { background: #34495e; }
-        .srd-item-name { font-weight: bold; color: #fff; font-size: 14px; }
-        .srd-item-type { font-size: 11px; color: #aaa; }
-
         /* Top Bar */
         header {
             background: #2b2b36; padding: 15px 30px; display: flex;
@@ -88,21 +78,13 @@
         button.srd-btn:hover:not(:disabled) { background: #8e44ad; }
         button.del-btn { background: #e74c3c; padding: 6px 10px; font-size: 12px;}
         button.del-btn:hover:not(:disabled) { background: #c0392b; }
-        button.save-btn { background: #f39c12; }
-        button.save-btn:hover:not(:disabled) { background: #d35400; }
-        button.load-btn { background: #f39c12; }
-        button.load-btn:hover:not(:disabled) { background: #d35400; }
         
         button.setup-btn { background: #7f8c8d; }
-        button.setup-btn:hover { background: #636e72; }
         button.setup-btn.configured { background: #27ae60; }
-        button.setup-btn.configured:hover { background: #219a52; }
         
         .dm-toggle-btn { background: #34495e; display: flex; align-items: center; gap: 6px; }
         .dm-toggle-btn.unlocked { background: #e67e22; }
-
         .potion-btn { background: #c0392b; font-size: 11px; padding: 6px 10px; }
-        .potion-btn:hover { background: #e74c3c; }
 
         /* Main Grid */
         main {
@@ -125,6 +107,7 @@
             width: 100%; height: 200px; background: #111; display: flex;
             justify-content: center; align-items: center; overflow: hidden;
             border-bottom: 1px solid #444; position: relative;
+            transition: height 0.3s ease;
         }
         .image-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
         .image-placeholder { color: #666; font-size: 14px; }
@@ -143,28 +126,22 @@
         
         .description-box {
             background: #1e1e24; padding: 10px; border-radius: 6px;
-            font-size: 13px; line-height: 1.5; color: #ccc; border: 1px solid #333; flex-grow: 1;
-            white-space: pre-wrap;
+            font-size: 13px; line-height: 1.5; color: #ccc; border: 1px solid #333; flex-grow: 1; white-space: pre-wrap;
         }
         .curse-box {
             background: #3b1b1b; padding: 10px; border-radius: 6px;
-            font-size: 13px; line-height: 1.5; color: #ff9999; border: 1px solid #e74c3c;
-            white-space: pre-wrap;
+            font-size: 13px; line-height: 1.5; color: #ff9999; border: 1px solid #e74c3c; white-space: pre-wrap;
         }
         .curse-box.hidden { border-style: dashed; border-color: #e67e22; color: #f39c12; background: #2a2015; }
-
         .hidden-text { color: #777; font-style: italic; text-align: center; padding: 10px 0; }
 
         /* Consumable Controls */
         .consume-controls {
             display: flex; align-items: center; justify-content: center; gap: 10px;
-            background: #1a1a20; padding: 8px; border-radius: 6px; border: 1px solid #555;
-            margin-bottom: 5px;
+            background: #1a1a20; padding: 8px; border-radius: 6px; border: 1px solid #555; margin-bottom: 5px;
         }
         .qty-btn { background: #555; width: 30px; height: 30px; border-radius: 50%; font-size: 18px; line-height: 1; display:flex; align-items:center; justify-content:center;}
-        .qty-btn:hover { background: #777; }
-        .qty-btn.minus { background: #e74c3c; } .qty-btn.minus:hover { background: #c0392b; }
-        .qty-btn.plus { background: #2ecc71; } .qty-btn.plus:hover { background: #27ae60; }
+        .qty-btn.minus { background: #e74c3c; } .qty-btn.plus { background: #2ecc71; }
 
         /* Edit Form Overlay */
         .edit-form {
@@ -179,14 +156,20 @@
         .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #ddd;}
         .card-actions { 
             display: flex; justify-content: space-between; align-items: center;
-            padding-top: 10px; border-top: 1px dashed #444; margin-top: auto;
-            gap: 10px; flex-wrap: wrap;
+            padding-top: 10px; border-top: 1px dashed #444; margin-top: auto; gap: 10px; flex-wrap: wrap;
         }
 
-        /* Tables */
         table.encumbrance-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;}
         table.encumbrance-table th, table.encumbrance-table td { padding: 10px; text-align: left; border-bottom: 1px solid #444; }
         table.encumbrance-table th { background: #1e1e24; color: #3498db; }
+
+        /* Responsive Mobile Layout */
+        @media (max-width: 600px) {
+            main { padding: 15px; gap: 15px; grid-template-columns: 1fr; }
+            .image-container { height: 120px; } /* Shrink images on small screens */
+            header { padding: 10px 15px; flex-direction: column; align-items: stretch; gap: 10px; }
+            .header-controls { justify-content: space-between; }
+        }
     </style>
 </head>
 <body>
@@ -221,13 +204,8 @@
             <h2>📖 D&D SRD Magic Items</h2>
             <p style="font-size: 12px; color: #aaa; margin-top: -5px;">Select an item to auto-fill its stats into a new, unidentified loot card.</p>
             <input type="text" id="srd-search-input" placeholder="Search SRD (e.g., Bag of Holding)..." oninput="renderSrdList()">
-            
-            <div id="srd-list-container" style="max-height: 350px; overflow-y: auto; margin-top: 10px; border: 1px solid #444; border-radius: 4px; background: #1e1e24;">
-                </div>
-            
-            <div style="text-align: right; margin-top: 15px;">
-                <button style="background: #555;" onclick="closeSrdModal()">Cancel</button>
-            </div>
+            <div id="srd-list-container" style="max-height: 350px; overflow-y: auto; margin-top: 10px; border: 1px solid #444; border-radius: 4px; background: #1e1e24;"></div>
+            <div style="text-align: right; margin-top: 15px;"><button style="background: #555;" onclick="closeSrdModal()">Cancel</button></div>
         </div>
     </div>
 
@@ -358,7 +336,7 @@ function doPost(e) {
                     <button style="background: #e74c3c;" onclick="disconnectCloud()">Disconnect App</button>
                     <button style="background: #555;" onclick="closeSetup()">Close</button>
                 </div>
-                <p style="font-size: 11px; color: #777; margin-top: 10px;">* Note: The app must be hosted online (not as a local file) for the QR code to work on mobile devices.</p>
+                <p style="font-size: 11px; color: #777; margin-top: 10px;">* Note: The app must be hosted online (not as a local file) for the QR code to function seamlessly on mobile devices.</p>
             </div>
         </div>
     </div>
@@ -380,7 +358,6 @@ function doPost(e) {
                 
                 <button id="logout-btn-header" style="background: #555; display: none;" onclick="handleLogout()">Logout</button>
 
-                <button class="load-btn" onclick="loadFromCloud()" id="btn-load">📥 Sync Data</button>
                 <button class="setup-btn" id="setup-btn-header" onclick="openSetup()">⚙️ Setup</button>
             </div>
         </header>
@@ -484,14 +461,17 @@ function doPost(e) {
         const srdModal = document.getElementById('srd-modal');
 
         window.onload = () => {
-            // Check for Auto-Join via URL Parameter
+            // Check for obfuscated Auto-Join via URL Parameter
             const urlParams = new URLSearchParams(window.location.search);
-            const syncUrl = urlParams.get('sync');
+            const joinCode = urlParams.get('j');
             
-            if (syncUrl) {
-                state.scriptUrl = decodeURIComponent(syncUrl);
-                localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
-                window.history.replaceState({}, document.title, window.location.pathname); // Clean the address bar
+            if (joinCode) {
+                try {
+                    let decodedId = atob(joinCode);
+                    state.scriptUrl = "https://script.google.com/macros/s/" + decodedId + "/exec";
+                    localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
+                    window.history.replaceState({}, document.title, window.location.pathname); // Clean the address bar
+                } catch(e) { console.error("Invalid join code"); }
             } else {
                 state.scriptUrl = localStorage.getItem('lootTrackerScriptUrl') || "";
             }
@@ -517,16 +497,20 @@ function doPost(e) {
                 configuredView.style.display = 'block';
                 inputView.style.display = 'none';
                 
-                // Generate QR Code URL
+                // Extract script ID and compress for the join link
+                let match = state.scriptUrl.match(/\/s\/([a-zA-Z0-9_-]+)\//);
+                let encodedCode = "";
+                if (match && match[1]) { encodedCode = btoa(match[1]); } 
+                else { encodedCode = btoa(state.scriptUrl); } // Fallback
+
                 const baseUrl = window.location.href.split('?')[0];
-                const joinUrl = baseUrl + "?sync=" + encodeURIComponent(state.scriptUrl);
+                const joinUrl = baseUrl + "?j=" + encodedCode;
                 const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" + encodeURIComponent(joinUrl);
                 document.getElementById('qr-code-img').src = qrUrl;
                 
             } else {
                 container.style.display = 'block'; 
                 toggleBtn.style.display = 'none';
-                
                 configuredView.style.display = 'none';
                 inputView.style.display = 'block';
             }
@@ -566,16 +550,17 @@ function doPost(e) {
                 document.getElementById('script-url-input').value = "";
                 closeSetup();
                 state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
-                loadDemoData();
-                renderAll();
+                loadDemoData(); renderAll();
             }
         }
 
         function copyJoinLink() {
+            let match = state.scriptUrl.match(/\/s\/([a-zA-Z0-9_-]+)\//);
+            let encodedCode = match && match[1] ? btoa(match[1]) : btoa(state.scriptUrl);
             const baseUrl = window.location.href.split('?')[0];
-            const joinUrl = baseUrl + "?sync=" + encodeURIComponent(state.scriptUrl);
+            const joinUrl = baseUrl + "?j=" + encodedCode;
             navigator.clipboard.writeText(joinUrl);
-            alert("Join Link copied to clipboard!");
+            alert("Secure Join Link copied to clipboard!");
         }
 
         // --- Live Sync Logic ---
@@ -660,7 +645,7 @@ function doPost(e) {
             const user = state.players.find(p => p.name === name && p.pin === pin);
             if (user) {
                 state.currentUser = user; state.isDmMode = asDm; closeLoginModal(); renderAll();
-            } else { alert("Incorrect PIN. (Hint for Demo: Try '1111' for Hank, or '7777' for Dungeon Master)"); }
+            } else { alert("Incorrect PIN."); }
         }
         function handleLogout() {
             state.currentUser = null; state.isDmMode = false; state.items.forEach(item => item.isEditing = false); renderAll();
@@ -864,7 +849,7 @@ function doPost(e) {
                 if (data.items && data.items.length > 0) {
                     const newDataHash = JSON.stringify(data.items);
                     if (silent && newDataHash === state.lastCloudHash) {
-                        return; // Skip render, nothing changed
+                        return; // Skip render
                     }
                     state.lastCloudHash = newDataHash;
 

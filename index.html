@@ -169,7 +169,7 @@
             <h2>Select Character</h2>
             <p style="font-size: 12px; color: #aaa;">Enter your PIN to manage your inventory, or unlock DM tools.</p>
             <select id="login-name"></select>
-            <input type="password" id="login-pin" placeholder="Enter PIN">
+            <input type="password" id="login-pin" placeholder="Enter PIN (e.g., 1111)">
             
             <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
                 <button class="add-btn" onclick="submitLogin(false)">👤 Enter as Player</button>
@@ -439,7 +439,6 @@ function doPost(e) {
             localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
             closeSetup();
             
-            // Clear demo data upon successful setup
             state.items = [];
             state.players = [];
             state.currentUser = null;
@@ -492,7 +491,7 @@ function doPost(e) {
             if (user) {
                 state.currentUser = user; state.isDmMode = asDm;
                 closeLoginModal(); renderAll();
-            } else { alert("Incorrect PIN."); }
+            } else { alert("Incorrect PIN. (Hint for Demo: Try '1111' for Hank, or '7777' for Dungeon Master)"); }
         }
 
         function handleLogout() {
@@ -501,7 +500,6 @@ function doPost(e) {
             renderAll();
         }
 
-        // Mode Switch (Allows DM/Player switching without logging out)
         function toggleViewMode() {
             if (state.isDmMode) {
                 state.isDmMode = false;
@@ -949,7 +947,7 @@ function doPost(e) {
                             ${item.isAttuned ? '<span class="badge attunement">🔗 Attuned</span>' : ''}
                             ${item.isIdentified ? '<span class="badge" style="background:#27ae60;">👁️ Identified</span>' : '<span class="badge" style="background:#7f8c8d;">❓ Unidentified</span>'}
                             ${item.isCurseRevealed ? '<span class="badge" style="background:#c0392b;">💀 Cursed</span>' : ''}
-                            ${state.isDmMode && !item.isIdentified ? `<span class="badge keeper">DM: ${item.secretKeeper}</span>` : ''}
+                            ${item.secretKeeper ? `<span class="badge keeper">GM: ${item.secretKeeper}</span>` : ''}
                         </div>
                         <div class="description-box">${descHtml}</div>
                         ${curseHtml}

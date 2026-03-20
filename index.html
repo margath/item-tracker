@@ -363,6 +363,9 @@ function doPost(e) {
                 <button id="switch-mode-btn" style="display: none; background: #9b59b6;" onclick="toggleViewMode()">👁️ Switch to DM View</button>
 
                 <button id="login-btn-header" class="dm-toggle-btn" onclick="openLoginModal()">👤 Log In</button>
+                
+                <button id="live-sync-btn" style="background: #555;" onclick="toggleLiveSync()">🔄 Live Sync: OFF</button>
+                
                 <button id="logout-btn-header" style="background: #555; display: none;" onclick="handleLogout()">Logout</button>
 
                 <button class="load-btn" onclick="loadFromCloud()" id="btn-load">📥 Sync Data</button>
@@ -395,6 +398,7 @@ function doPost(e) {
             isDmMode: false,
             scriptUrl: localStorage.getItem('lootTrackerScriptUrl') || "",
             searchQuery: "",
+            lastCloudHash: "", // Used to prevent screen flickering during Live Sync
             players: [], 
             items: []
         };
@@ -507,6 +511,32 @@ function doPost(e) {
             const code = document.getElementById('app-script-code').innerText;
             navigator.clipboard.writeText(code);
             alert("Apps Script code copied to clipboard!");
+        }
+
+        // --- Live Sync Logic ---
+        let liveSyncInterval = null;
+        function toggleLiveSync() {
+            if (!state.scriptUrl) return alert("Please complete the Cloud Setup first!");
+            const btn = document.getElementById('live-sync-btn');
+            
+            if (liveSyncInterval) {
+                clearInterval(liveSyncInterval);
+                liveSyncInterval = null;
+                btn.innerHTML = '🔄 Live Sync: OFF';
+                btn.style.background = '#555';
+            } else {
+                // Poll every 15 seconds
+                liveSyncInterval = setInterval(() => {
+                    // Safety check: Don't sync if anyone is actively typing in an edit window
+                    if (!state.items.some(i => i.isEditing)) {
+                        loadFromCloud(true); 
+                    }
+                }, 15000);
+                
+                btn.innerHTML = '🔄 Live Sync: ON';
+                btn.style.background = '#27ae60';
+                loadFromCloud(true); // Fire immediately once
+            }
         }
 
         // --- SRD Functions ---
@@ -761,10 +791,10 @@ function doPost(e) {
             if (!skipRender) renderAll();
         }
 
-        async function loadFromCloud() {
+        async function loadFromCloud(silent = false) {
             if (!state.scriptUrl) return; 
             const btn = document.getElementById('btn-load');
-            btn.innerText = "⏳ Syncing..."; btn.disabled = true;
+            if (!silent) { btn.innerText = "⏳ Syncing..."; btn.disabled = true; }
 
             try {
                 const response = await fetch(state.scriptUrl);
@@ -772,6 +802,13 @@ function doPost(e) {
                 
                 if (data.players) state.players = data.players;
                 if (data.items && data.items.length > 0) {
+                    // Check if new data is actually different to prevent flickering
+                    const newDataHash = JSON.stringify(data.items);
+                    if (silent && newDataHash === state.lastCloudHash) {
+                        return; // Skip render, nothing changed
+                    }
+                    state.lastCloudHash = newDataHash;
+
                     state.items = data.items.map(item => ({
                         ...item,
                         quantity: item.quantity !== undefined ? parseInt(item.quantity) : 1,
@@ -785,7 +822,8 @@ function doPost(e) {
                 } else { state.items = []; }
             } catch(e) { console.error("Load error:", e); }
             
-            btn.innerText = "📥 Sync Data"; btn.disabled = false; renderAll();
+            if (!silent) { btn.innerText = "📥 Sync Data"; btn.disabled = false; }
+            renderAll();
         }
 
         // --- Image Uploading ---

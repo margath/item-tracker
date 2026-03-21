@@ -18,31 +18,48 @@ jobs:
         with:
           fetch-depth: 0 
 
-      - name: Inject Version and Repository Data
+      - name: Stamp, Commit, and Tag
         run: |
+          # 1. Generate Variables
           VERSION="$(date -u +'%Y.%m.%d').${{ github.run_number }}"
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           REPO_PATH="${{ github.repository }}"
           
-          # This Regex looks for the exact property names and overwrites ANY text inside their quotes.
-          # It guarantees the script works perfectly every single time it runs!
-          sed -i -E 's/version: "[^"]*"/version: "v'"${VERSION}"'"/' index.html
-          sed -i -E 's/commit: "[^"]*"/commit: "'"${GITHUB_SHA}"'"/' index.html
-          sed -i -E 's/shortSha: "[^"]*"/shortSha: "'"${SHORT_SHA}"'"/' index.html
-          sed -i -E 's|repo: "[^"]*"|repo: "'"${REPO_PATH}"'"|' index.html
+          # 2. Safely replace the BUILD_INFO block using explicit markers
+          awk -v v="${VERSION}" -v c="${GITHUB_SHA}" -v s="${SHORT_SHA}" -v r="${REPO_PATH}" '
+            /\/\/ --- BUILD INFO START ---/ {
+              print
+              print "        const BUILD_INFO = {"
+              print "            version: \"" v "\","
+              print "            commit: \"" c "\","
+              print "            shortSha: \"" s "\","
+              print "            repo: \"" r "\""
+              print "        };"
+              skip=1
+              next
+            }
+            /\/\/ --- BUILD INFO END ---/ {
+              skip=0
+            }
+            !skip { print }
+          ' index.html > temp.html && mv temp.html index.html
 
-      - name: Commit and Push Updates
-        run: |
+          # 3. Configure Git Bot
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
+          # 4. Commit to Main
           git add index.html
-          
-          # Commit the changes (Skipping CI prevents an infinite loop)
           git diff --quiet && git diff --staged --quiet || git commit -m "ci: stamp version v${VERSION} [skip ci]"
           git push origin main
           
-          # Create and Push Tag
+          # 5. Create and Push Tag Safely
           NEW_TAG="v${VERSION}"
-          git tag $NEW_TAG
-          git push origin $NEW_TAG
+          
+          # Check if the tag already exists on the remote to prevent retry failures
+          if git ls-remote --tags origin | grep -q "refs/tags/$NEW_TAG"; then
+            echo "Tag $NEW_TAG already exists, skipping tag creation."
+          else
+            git tag "$NEW_TAG"
+            git push origin "$NEW_TAG"
+          fi

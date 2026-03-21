@@ -1,68 +1,52 @@
 name: Deploy Item Tracker on Commit
 
-# This tells GitHub to run the script whenever you push a commit to the main branch
 on:
   push:
     branches:
-      - main  # (Change this to 'master' if your default branch is called master)
-  workflow_dispatch: # Keeps the manual trigger button just in case
+      - main
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  # Bumping permissions to write so the action can push commits and tags
+  contents: write 
   pages: write
   id-token: write
-  
+
 jobs:
-  tag:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Get current date
-        id: date
-        run: echo "date=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
-
-      - name: Get latest iteration for today
-        id: iteration
-        run: |
-          DATE="${{ steps.date.outputs.date }}"
-          # Find tags starting with today's date
-          TAGS=$(git tag --list "${DATE}.*" | sort -V)
-          if [ -z "$TAGS" ]; then
-            ITER=1
-          else
-            LAST_TAG=$(echo "$TAGS" | tail -n 1)
-            LAST_ITER=${LAST_TAG##*.}
-            ITER=$((LAST_ITER + 1))
-          fi
-          echo "iteration=$ITER" >> $GITHUB_OUTPUT
+        with:
+          fetch-depth: 0 # Required to push tags and commits back to the repo
 
       - name: Inject Build Status and Commit Hash
         run: |
-          # Since it's a commit, we don't have a release tag. We'll label it "Live-Build"
-          VERSION="${{ steps.date.outputs.date }}.${{ steps.iteration.outputs.iteration }}"
-          
-          # Get the short version of the commit hash (first 7 characters)
+          VERSION="Live Build"
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           
-          # Find and replace the placeholders in index.html
           sed -i "s/{{RELEASE_VERSION}}/${VERSION}/g" index.html
           sed -i "s/{{COMMIT_HASH}}/${{ github.sha }}/g" index.html
           sed -i "s/{{SHORT_SHA}}/${SHORT_SHA}/g" index.html
 
-      - name: Create new tag
+      - name: Commit and Push Tag
         run: |
-          NEW_TAG="${{ steps.date.outputs.date }}.${{ steps.iteration.outputs.iteration }}"
-          echo "Creating tag: $NEW_TAG"
+          # Configure the git bot
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "$NEW_TAG"
-          git push origin "$NEW_TAG"
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "${{ steps.date.outputs.date }}.${{ steps.iteration.outputs.iteration }}"
-          name: "Release ${{ steps.date.outputs.date }}.${{ steps.iteration.outputs.iteration }}"
-          body: "Automated release for ${{ steps.date.outputs.date }} iteration ${{ steps.iteration.outputs.iteration }}"
+          
+          # Commit the modified index.html so the tag points to the injected version
+          git add index.html
+          
+          # Only commit if there are changes (prevents failure if nothing changed)
+          git diff --quiet && git diff --staged --quiet || git commit -m "ci: inject build hashes [skip ci]"
+          
+          # Create and push a unique tag for this build
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          NEW_TAG="build-${SHORT_SHA}"
+          git tag $NEW_TAG
+          git push origin $NEW_TAG

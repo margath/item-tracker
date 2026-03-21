@@ -25,11 +25,24 @@ jobs:
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           REPO_PATH="${{ github.repository }}"
           
-          # 2. Inject into HTML
-          sed -i "s/{{RELEASE_VERSION}}/${VERSION}/g" index.html
-          sed -i "s/{{COMMIT_HASH}}/${{ github.sha }}/g" index.html
-          sed -i "s/{{SHORT_SHA}}/${SHORT_SHA}/g" index.html
-          sed -i "s|YOUR_USERNAME/YOUR_REPO|${REPO_PATH}|g" index.html
+          # 2. Safely replace the BUILD_INFO block using explicit markers
+          awk -v v="${VERSION}" -v c="${GITHUB_SHA}" -v s="${SHORT_SHA}" -v r="${REPO_PATH}" '
+            /\/\/ --- BUILD INFO START ---/ {
+              print
+              print "        const BUILD_INFO = {"
+              print "            version: \"" v "\","
+              print "            commit: \"" c "\","
+              print "            shortSha: \"" s "\","
+              print "            repo: \"" r "\""
+              print "        };"
+              skip=1
+              next
+            }
+            /\/\/ --- BUILD INFO END ---/ {
+              skip=0
+            }
+            !skip { print }
+          ' index.html > temp.html && mv temp.html index.html
 
           # 3. Configure Git Bot
           git config user.name "github-actions[bot]"
@@ -37,10 +50,16 @@ jobs:
           
           # 4. Commit to Main
           git add index.html
-          git diff --quiet && git diff --staged --quiet || git commit -m "ci: stamp version ${VERSION} [skip ci]"
+          git diff --quiet && git diff --staged --quiet || git commit -m "ci: stamp version v${VERSION} [skip ci]"
           git push origin main
           
-          # 5. Create and Push Tag (Now VERSION is successfully stored in memory!)
+          # 5. Create and Push Tag Safely
           NEW_TAG="v${VERSION}"
-          git tag $NEW_TAG
-          git push origin $NEW_TAG
+          
+          # Check if the tag already exists on the remote to prevent retry failures
+          if git ls-remote --tags origin | grep -q "refs/tags/$NEW_TAG"; then
+            echo "Tag $NEW_TAG already exists, skipping tag creation."
+          else
+            git tag "$NEW_TAG"
+            git push origin "$NEW_TAG"
+          fi

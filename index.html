@@ -271,7 +271,14 @@
             items: [],
             standardCatalog: []
         };
-
+        
+        // --- MISSING DOM ELEMENTS (ADD THESE) ---
+        const gridEl = document.getElementById('loot-grid');
+        const loginModal = document.getElementById('login-modal');
+        const setupScreen = document.getElementById('setup-screen');
+        const encumbranceModal = document.getElementById('encumbrance-modal');
+        // ----------------------------------------
+        
         // Default Catalog (Seeds the Cloud if empty)
         const DEFAULT_CATALOG = [
             { apparentName: "Red Potion", trueName: "Potion of Healing", description: "Regain 2d4 + 2 HP.", weight: "0.5 lbs", isConsumable: true },

@@ -1,6 +1,5 @@
 name: Stamp Build Version
 
-# Triggers when you push to main, or manually via the Actions tab
 on:
   push:
     branches:
@@ -17,39 +16,31 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Required to push tags and commits back to the repo
+          fetch-depth: 0 
 
-      - name: Inject Version and Repository Data
+      - name: Stamp, Commit, and Tag
         run: |
-          # Generate CalVer format: YYYY.MM.DD.RunNumber (e.g., 2026.03.20.42)
+          # 1. Generate Variables
           VERSION="$(date -u +'%Y.%m.%d').${{ github.run_number }}"
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           REPO_PATH="${{ github.repository }}"
           
-          # Find and replace the version and commit placeholders
+          # 2. Inject into HTML
           sed -i "s/{{RELEASE_VERSION}}/${VERSION}/g" index.html
           sed -i "s/{{COMMIT_HASH}}/${{ github.sha }}/g" index.html
           sed -i "s/{{SHORT_SHA}}/${SHORT_SHA}/g" index.html
-          
-          # Replace the GitHub URL placeholders. 
-          # Note: We use '|' as the delimiter instead of '/' because the REPO_PATH variable contains a slash.
           sed -i "s|YOUR_USERNAME/YOUR_REPO|${REPO_PATH}|g" index.html
 
-      - name: Commit and Push Updates
-        run: |
-          # Configure the GitHub Actions bot
+          # 3. Configure Git Bot
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
+          # 4. Commit to Main
           git add index.html
-          
-          # Only commit if changes were made. [skip ci] prevents an infinite loop!
           git diff --quiet && git diff --staged --quiet || git commit -m "ci: stamp version ${VERSION} [skip ci]"
-          
-          # Push the stamped index.html back to your repository
           git push origin main
           
-          # Create and push a unique tag using the new Version Number
+          # 5. Create and Push Tag (Now VERSION is successfully stored in memory!)
           NEW_TAG="v${VERSION}"
           git tag $NEW_TAG
           git push origin $NEW_TAG

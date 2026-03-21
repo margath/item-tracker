@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Item Tracker</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif; 
+            margin: 0;
+            background-color: #1e1e24; 
+            color: #e0e0e0; 
+            display: flex;
+            flex-direction: column; 
+            min-height: 100vh;
+        }
+
+        /* Top Bar */
+        header {
+            background: #2b2b36; 
+            padding: 15px 30px; 
+            display: flex;
+            justify-content: space-between; 
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4); 
+            border-bottom: 1px solid #444;
+        }
+        header h1 { margin: 0; font-size: 20px; color: #fff; }
+        
+        button {
+            background: #3498db; color: white; border: none; padding: 8px 12px; 
+            border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;
+        }
+        button:hover { background: #2980b9; }
+
+        /* Main Content Container */
+        main {
+            flex-grow: 1;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .policy-card {
+            background: #2a2a35; 
+            padding: 40px; 
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+            border: 1px solid #444;
+            max-width: 800px;
+            width: 100%;
+            line-height: 1.6;
+        }
+
+        .policy-card h1 { color: #fff; margin-top: 0; border-bottom: 1px solid #555; padding-bottom: 15px; }
+        .policy-card h2 { color: #3498db; margin-top: 30px; font-size: 18px; }
+        .policy-card h3 { color: #e0e0e0; font-size: 16px; }
+        .policy-card p { color: #ccc; font-size: 14px; margin-bottom: 15px; }
+        .policy-card ul { color: #ccc; font-size: 14px; padding-left: 20px; }
+        .policy-card li { margin-bottom: 10px; }
+        .policy-card a { color: #2ecc71; text-decoration: none; }
+        .policy-card a:hover { text-decoration: underline; }
+
+        @media (max-width: 600px) {
+            .policy-card { padding: 25px; }
+            header { flex-direction: column; gap: 15px; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Item Tracker Privacy Policy</h1>
+        <button onclick="window.location.href='index.html'">⬅ Back to App</button>
+    </header>
+
+    <main>
+        <div class="policy-card">
+            <h1>Privacy Policy for Party Loot Tracker</h1>
+            <p><em>Last Updated: March 21, 2026</em></p>
+            
+            <p>This Privacy Policy explains how data is handled when you use the Party Loot Tracker application. The short version is: <strong>This is a client-side application. The creator of this app does not collect, store, or have access to any of your data, your campaigns, or your characters.</strong></p>
+            
+            <p>Here is a detailed breakdown of exactly where your data goes and how it is secured.</p>
+
+            <h2>1. Where Your Data is Stored</h2>
+            <p>This application does not use a central database controlled by the developer. Instead, it relies on a <strong>"Bring Your Own Database"</strong> model.</p>
+            <ul>
+                <li><strong>Google Sheets:</strong> All campaign data (items, quantities, character names, and PINs) is sent directly from your browser to a Google Apps Script URL provided by your Dungeon Master (DM). This data is stored entirely within your DM's personal Google Drive.</li>
+                <li><strong>Local Storage:</strong> The app saves the Google Apps Script URL (the "Join Link") in your browser's local storage (<code>localStorage</code>) so you don't have to re-enter it every time you open the app. If you click "Disconnect," this local data is immediately deleted.</li>
+            </ul>
+
+            <h2>2. Data Security & Encryption</h2>
+            <p>Because the data is stored in a Google Sheet, anyone with access to that specific Google Sheet can see the raw data. To protect campaign secrets, this app uses <strong>Client-Side Encryption</strong>:</p>
+            <ul>
+                <li><strong>DM Secrets:</strong> If an item is Unidentified, or if it has a Hidden Curse, the true name, magical description, and curse details are encrypted directly in your browser using the AES algorithm (via the CryptoJS library) before being sent to Google.</li>
+                <li><strong>Encryption Keys:</strong> The encryption key is dynamically generated using your specific DM PIN.</li>
+                <li><strong>Plaintext Limitations:</strong> <strong>Please note that Player PINs are not encrypted.</strong> They are stored as plain text in the DM's Google Sheet. <strong>Do not use a real-life password for your character PIN.</strong></li>
+            </ul>
+
+            <h2>3. Third-Party Services</h2>
+            <p>While the app itself does not collect your data, it runs in your browser and connects to a few standard third-party services to function:</p>
+            <ul>
+                <li><strong>Cloudflare Pages:</strong> This app is hosted on Cloudflare Pages. When you visit the app, Cloudflare collects standard, temporary web traffic logs (such as your IP address and browser user agent) to route the website to you and protect against DDoS attacks, subject to <a href="https://www.cloudflare.com/privacypolicy/" target="_blank">Cloudflare's Privacy Policy</a>.</li>
+                <li><strong>Google APIs:</strong> The app communicates with <code>script.google.com</code> and <code>drive.google.com</code> (for image uploads) to save and load your campaign data.</li>
+                <li><strong>GitHub API:</strong> To ensure you are running the latest version, the app makes an unauthenticated, read-only request to <code>api.github.com</code> to check for recent code updates.</li>
+                <li><strong>QR Server API:</strong> If the DM opens the Setup menu to display a QR code, the app sends your specific Google Apps Script ID to <code>api.qrserver.com</code> to generate the image.</li>
+            </ul>
+
+            <h2>4. Cookies, Analytics, and Tracking</h2>
+            <p>We respect your privacy at the gaming table.</p>
+            <ul>
+                <li><strong>No Analytics:</strong> We do not use Google Analytics, Meta Pixels, or any other tracking scripts.</li>
+                <li><strong>No Ads:</strong> There are no advertisements or ad-tracking networks embedded in this app.</li>
+                <li><strong>No Cookies:</strong> We do not use cookies. We only use local browser storage to remember your campaign URL.</li>
+            </ul>
+
+            <h2>5. Your Rights & Data Deletion</h2>
+            <p>Because the developer of this application holds none of your data, we cannot delete your data for you.</p>
+            <ul>
+                <li><strong>To delete your character or items:</strong> Use the delete buttons within the app, or ask your DM to remove your row from their Google Sheet.</li>
+                <li><strong>To delete your local connection:</strong> Click the "Disconnect" button in the Setup menu to clear your browser's local storage.</li>
+            </ul>
+        </div>
+    </main>
+
+</body>
+</html>

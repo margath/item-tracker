@@ -356,11 +356,11 @@ function doPost(e) {
             <h1 id="main-page-title">
                 Item Tracker
                 <div class="github-links" style="display: inline-flex; gap: 5px; font-size: 11px; margin-left: 15px;">
-                    <a href="https://github.com/margath/item-tracker/releases/tag/2026.03.21.1" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                        🐙 2026.03.21.1
+                    <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases/tag/{{RELEASE_VERSION}}" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                        🐙 {{RELEASE_VERSION}}
                     </a>
-                    <a href="https://github.com/margath/item-tracker/commit/5c6bd07bd855d442c483f214dfef4863ea94db36" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                        📄 5c6bd07
+                    <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/commit/{{COMMIT_HASH}}" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                        📄 {{SHORT_SHA}}
                     </a>
                 </div>
             </h1>
@@ -663,7 +663,7 @@ function doPost(e) {
             const user = state.players.find(p => p.name === name && p.pin === pin);
             if (user) {
                 state.currentUser = user; state.isDmMode = asDm; closeLoginModal(); renderAll();
-            } else { alert("Incorrect PIN."); }
+            } else { alert("Incorrect PIN. (Hint for Demo: Try '1111' for Hank, or '7777' for Dungeon Master)"); }
         }
         function handleLogout() {
             state.currentUser = null; state.isDmMode = false; state.items.forEach(item => item.isEditing = false); renderAll();
@@ -802,7 +802,7 @@ function doPost(e) {
         function triggerAutoSave() {
             clearTimeout(autoSaveTimeout);
             const btn = document.getElementById('btn-load');
-            if (btn) btn.innerText = "⏳ Autosaving...";
+            if(btn) btn.innerText = "⏳ Autosaving...";
             autoSaveTimeout = setTimeout(() => { saveToCloud(true, true); }, 1500);
         }
 
@@ -988,11 +988,11 @@ function doPost(e) {
                 titleEl.innerHTML = `
                     Item Tracker
                     <div class="github-links" style="display: inline-flex; gap: 5px; font-size: 11px; margin-left: 15px;">
-                        <a href="https://github.com/margath/item-tracker/releases/tag/2026.03.21.1" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                            🐙 2026.03.21.1
+                        <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases/tag/{{RELEASE_VERSION}}" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                            🐙 {{RELEASE_VERSION}}
                         </a>
-                        <a href="https://github.com/margath/item-tracker/commit/5c6bd07bd855d442c483f214dfef4863ea94db36" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                            📄 5c6bd07
+                        <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/commit/{{COMMIT_HASH}}" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                            📄 {{SHORT_SHA}}
                         </a>
                     </div>
                 `;
@@ -1001,11 +1001,11 @@ function doPost(e) {
                 titleEl.innerHTML = `
                     Item Tracker <span style="font-size: 12px; color: #e67e22;">[Cartoon Demo Data]</span>
                     <div class="github-links" style="display: inline-flex; gap: 5px; font-size: 11px; margin-left: 15px;">
-                        <a href="https://github.com/margath/item-tracker/releases/tag/2026.03.21.1" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                            🐙 2026.03.21.1
+                        <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases/tag/{{RELEASE_VERSION}}" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                            🐙 {{RELEASE_VERSION}}
                         </a>
-                        <a href="https://github.com/margath/item-tracker/commit/5c6bd07bd855d442c483f214dfef4863ea94db36" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                            📄 5c6bd07
+                        <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/commit/{{COMMIT_HASH}}" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                            📄 {{SHORT_SHA}}
                         </a>
                     </div>
                 `;

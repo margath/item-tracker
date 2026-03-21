@@ -180,6 +180,38 @@
             .header-controls { justify-content: space-between; }
             .github-links { display: none !important; } 
         }
+/* Privacy Ribbon */
+        .privacy-ribbon {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100px;
+            height: 100px;
+            overflow: hidden;
+            z-index: 1000;
+        }
+        .privacy-ribbon span {
+            position: absolute;
+            display: block;
+            width: 150px;
+            padding: 6px 0;
+            background-color: #c0392b;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            color: #fff;
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+            text-transform: uppercase;
+            text-decoration: none;
+            bottom: 22px;
+            left: -40px;
+            transform: rotate(45deg);
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+        .privacy-ribbon:hover span {
+            background-color: #e74c3c;
+        }
     </style>
 </head>
 <body>
@@ -388,7 +420,9 @@ function doPost(e) {
 
         <main id="loot-grid"></main>
     </div>
-
+    <a href="privacy.html" class="privacy-ribbon" title="View Privacy Policy">
+        <span>Privacy</span>
+    </a>
     <script>
         const CAMPAIGN_KEY = "SecretDragonHoard2026"; 
 

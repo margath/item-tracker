@@ -38,13 +38,23 @@
             font-size: 11px; overflow-x: auto; color: #a6e22e; cursor: text;
         }
 
+        /* SRD List Styles */
+        .srd-item {
+            padding: 12px 15px; border-bottom: 1px solid #333; display: flex; 
+            justify-content: space-between; align-items: center; background: #1e1e24;
+            transition: background 0.2s; cursor: pointer;
+        }
+        .srd-item:hover { background: #34495e; }
+        .srd-item-name { font-weight: bold; color: #fff; font-size: 14px; }
+        .srd-item-type { font-size: 11px; color: #aaa; }
+
         /* Top Bar */
         header {
             background: #2b2b36; padding: 15px 30px; display: flex;
             justify-content: space-between; align-items: center;
             box-shadow: 0 4px 12px rgba(0,0,0,0.4); border-bottom: 1px solid #444;
         }
-        header h1 { margin: 0; font-size: 20px; color: #fff; }
+        header h1 { margin: 0; font-size: 20px; color: #fff; display: flex; align-items: center; gap: 15px;}
         .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap;}
         .user-info { font-size: 14px; color: #aaa; margin-right: 10px; }
         .user-info span { font-weight: bold; color: #3498db; }
@@ -83,7 +93,6 @@
         button.setup-btn.configured { background: #27ae60; }
         
         .dm-toggle-btn { background: #34495e; display: flex; align-items: center; gap: 6px; }
-        .dm-toggle-btn.unlocked { background: #e67e22; }
         .potion-btn { background: #c0392b; font-size: 11px; padding: 6px 10px; }
 
         /* Main Grid */
@@ -166,9 +175,10 @@
         /* Responsive Mobile Layout */
         @media (max-width: 600px) {
             main { padding: 15px; gap: 15px; grid-template-columns: 1fr; }
-            .image-container { height: 120px; } /* Shrink images on small screens */
+            .image-container { height: 120px; } 
             header { padding: 10px 15px; flex-direction: column; align-items: stretch; gap: 10px; }
             .header-controls { justify-content: space-between; }
+            .github-links { display: none; } 
         }
     </style>
 </head>
@@ -336,14 +346,24 @@ function doPost(e) {
                     <button style="background: #e74c3c;" onclick="disconnectCloud()">Disconnect App</button>
                     <button style="background: #555;" onclick="closeSetup()">Close</button>
                 </div>
-                <p style="font-size: 11px; color: #777; margin-top: 10px;">* Note: The app must be hosted online (not as a local file) for the QR code to function seamlessly on mobile devices.</p>
+                <p style="font-size: 11px; color: #777; margin-top: 10px;">* Note: The app must be hosted online for the QR code to function seamlessly on mobile devices.</p>
             </div>
         </div>
     </div>
 
     <div id="app-workspace" style="display: flex; flex-direction: column; min-height: 100vh;">
         <header>
-            <h1 id="main-page-title">Item Tracker</h1>
+            <h1 id="main-page-title">
+                Item Tracker
+                <div class="github-links" style="display: inline-flex; gap: 5px; font-size: 11px; margin-left: 15px;">
+                    <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases/tag/{{RELEASE_VERSION}}" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                        🐙 {{RELEASE_VERSION}}
+                    </a>
+                    <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/commit/{{COMMIT_HASH}}" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                        📄 {{SHORT_SHA}}
+                    </a>
+                </div>
+            </h1>
             <div class="header-controls">
                 <div class="user-info" id="user-info-display" style="display: none;">Logged in as: <span id="display-user-name"></span></div>
                 
@@ -497,11 +517,10 @@ function doPost(e) {
                 configuredView.style.display = 'block';
                 inputView.style.display = 'none';
                 
-                // Extract script ID and compress for the join link
                 let match = state.scriptUrl.match(/\/s\/([a-zA-Z0-9_-]+)\//);
                 let encodedCode = "";
                 if (match && match[1]) { encodedCode = btoa(match[1]); } 
-                else { encodedCode = btoa(state.scriptUrl); } // Fallback
+                else { encodedCode = btoa(state.scriptUrl); }
 
                 const baseUrl = window.location.href.split('?')[0];
                 const joinUrl = baseUrl + "?j=" + encodedCode;
@@ -550,7 +569,8 @@ function doPost(e) {
                 document.getElementById('script-url-input').value = "";
                 closeSetup();
                 state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
-                loadDemoData(); renderAll();
+                loadDemoData();
+                renderAll();
             }
         }
 
@@ -572,14 +592,12 @@ function doPost(e) {
             if (liveSyncInterval) {
                 clearInterval(liveSyncInterval);
                 liveSyncInterval = null;
-                btn.innerHTML = '🔄 Live Sync: OFF';
-                btn.style.background = '#555';
+                if (btn) { btn.innerHTML = '🔄 Live Sync: OFF'; btn.style.background = '#555'; }
             } else {
                 liveSyncInterval = setInterval(() => {
                     if (!state.items.some(i => i.isEditing)) { loadFromCloud(true); }
                 }, 15000);
-                btn.innerHTML = '🔄 Live Sync: ON';
-                btn.style.background = '#27ae60';
+                if (btn) { btn.innerHTML = '🔄 Live Sync: ON'; btn.style.background = '#27ae60'; }
                 loadFromCloud(true); 
             }
         }
@@ -784,7 +802,7 @@ function doPost(e) {
         function triggerAutoSave() {
             clearTimeout(autoSaveTimeout);
             const btn = document.getElementById('btn-load');
-            if(btn) btn.innerText = "⏳ Autosaving...";
+            if (btn) btn.innerText = "⏳ Autosaving...";
             autoSaveTimeout = setTimeout(() => { saveToCloud(true, true); }, 1500);
         }
 
@@ -793,7 +811,7 @@ function doPost(e) {
             clearTimeout(autoSaveTimeout); 
             if (!silent) {
                 const btn = document.getElementById('btn-load');
-                btn.innerText = "⏳ Saving..."; btn.disabled = true;
+                if (btn) { btn.innerText = "⏳ Saving..."; btn.disabled = true; }
             }
 
             const secureData = state.items.map(item => {
@@ -839,7 +857,7 @@ function doPost(e) {
         async function loadFromCloud(silent = false) {
             if (!state.scriptUrl) return; 
             const btn = document.getElementById('btn-load');
-            if (!silent) { btn.innerText = "⏳ Syncing..."; btn.disabled = true; }
+            if (!silent && btn) { btn.innerText = "⏳ Syncing..."; btn.disabled = true; }
 
             try {
                 const response = await fetch(state.scriptUrl);
@@ -866,7 +884,7 @@ function doPost(e) {
                 } else { state.items = []; }
             } catch(e) { console.error("Load error:", e); }
             
-            if (!silent) { btn.innerText = "📥 Sync Data"; btn.disabled = false; }
+            if (!silent && btn) { btn.innerText = "📥 Sync Data"; btn.disabled = false; }
             renderAll();
         }
 
@@ -967,9 +985,31 @@ function doPost(e) {
 
             // Header UI states
             if (state.scriptUrl) {
-                titleEl.innerHTML = `Item Tracker`; setupBtn.innerHTML = `⚙️✅ Setup`; setupBtn.classList.add('configured');
+                titleEl.innerHTML = `
+                    Item Tracker
+                    <div class="github-links" style="display: inline-flex; gap: 5px; font-size: 11px; margin-left: 15px;">
+                        <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases/tag/{{RELEASE_VERSION}}" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                            🐙 {{RELEASE_VERSION}}
+                        </a>
+                        <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/commit/{{COMMIT_HASH}}" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                            📄 {{SHORT_SHA}}
+                        </a>
+                    </div>
+                `;
+                setupBtn.innerHTML = `⚙️✅ Setup`; setupBtn.classList.add('configured');
             } else {
-                titleEl.innerHTML = `Item Tracker <span style="font-size: 12px; color: #e67e22;">[Cartoon Demo Data]</span>`; setupBtn.innerHTML = `⚙️ Setup`; setupBtn.classList.remove('configured');
+                titleEl.innerHTML = `
+                    Item Tracker <span style="font-size: 12px; color: #e67e22;">[Cartoon Demo Data]</span>
+                    <div class="github-links" style="display: inline-flex; gap: 5px; font-size: 11px; margin-left: 15px;">
+                        <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases/tag/{{RELEASE_VERSION}}" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                            🐙 {{RELEASE_VERSION}}
+                        </a>
+                        <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/commit/{{COMMIT_HASH}}" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                            📄 {{SHORT_SHA}}
+                        </a>
+                    </div>
+                `;
+                setupBtn.innerHTML = `⚙️ Setup`; setupBtn.classList.remove('configured');
             }
 
             if (state.currentUser) {
@@ -1025,19 +1065,20 @@ function doPost(e) {
             }
 
             // Apply Sorting
-            if (state.currentUser) {
-                displayItems.sort((a, b) => {
-                    const rankA = a.owner === state.currentUser.name ? 1 : (a.owner === "Party Stash" ? 2 : 3);
-                    const rankB = b.owner === state.currentUser.name ? 1 : (b.owner === "Party Stash" ? 2 : 3);
-                    return rankA - rankB;
-                });
-            } else {
-                displayItems.sort((a, b) => {
-                    const rankA = a.owner === "Party Stash" ? 1 : 2;
-                    const rankB = b.owner === "Party Stash" ? 1 : 2;
-                    return rankA - rankB;
-                });
-            }
+            displayItems.sort((a, b) => {
+                const getRank = (owner) => {
+                    if (state.currentUser && owner === state.currentUser.name) return 0;
+                    if (owner === "Party Stash") return 1;
+                    return 2;
+                };
+
+                const rankA = getRank(a.owner);
+                const rankB = getRank(b.owner);
+
+                if (rankA !== rankB) return rankA - rankB;
+                if (a.owner !== b.owner) return a.owner.localeCompare(b.owner);
+                return (a.apparentName || "").localeCompare(b.apparentName || "");
+            });
 
             if (displayItems.length === 0) {
                 gridEl.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #777;">No items match your search or inventory is empty.</div>`;

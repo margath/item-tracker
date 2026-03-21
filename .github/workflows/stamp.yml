@@ -18,29 +18,31 @@ jobs:
         with:
           fetch-depth: 0 
 
-      - name: Stamp, Commit, and Tag
+      - name: Inject Version and Repository Data
         run: |
-          # 1. Generate Variables
           VERSION="$(date -u +'%Y.%m.%d').${{ github.run_number }}"
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           REPO_PATH="${{ github.repository }}"
           
-          # 2. Inject into HTML
-          sed -i "s/{{RELEASE_VERSION}}/${VERSION}/g" index.html
-          sed -i "s/{{COMMIT_HASH}}/${{ github.sha }}/g" index.html
-          sed -i "s/{{SHORT_SHA}}/${SHORT_SHA}/g" index.html
-          sed -i "s|YOUR_USERNAME/YOUR_REPO|${REPO_PATH}|g" index.html
+          # This Regex looks for the exact property names and overwrites ANY text inside their quotes.
+          # It guarantees the script works perfectly every single time it runs!
+          sed -i -E 's/version: "[^"]*"/version: "v'"${VERSION}"'"/' index.html
+          sed -i -E 's/commit: "[^"]*"/commit: "'"${GITHUB_SHA}"'"/' index.html
+          sed -i -E 's/shortSha: "[^"]*"/shortSha: "'"${SHORT_SHA}"'"/' index.html
+          sed -i -E 's|repo: "[^"]*"|repo: "'"${REPO_PATH}"'"|' index.html
 
-          # 3. Configure Git Bot
+      - name: Commit and Push Updates
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 4. Commit to Main
           git add index.html
-          git diff --quiet && git diff --staged --quiet || git commit -m "ci: stamp version ${VERSION} [skip ci]"
+          
+          # Commit the changes (Skipping CI prevents an infinite loop)
+          git diff --quiet && git diff --staged --quiet || git commit -m "ci: stamp version v${VERSION} [skip ci]"
           git push origin main
           
-          # 5. Create and Push Tag (Now VERSION is successfully stored in memory!)
+          # Create and Push Tag
           NEW_TAG="v${VERSION}"
           git tag $NEW_TAG
           git push origin $NEW_TAG

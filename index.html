@@ -63,6 +63,7 @@
             background: #1a1a20; padding: 8px 30px; border-bottom: 1px solid #444;
             display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
         }
+        .dm-toolbar-label { font-size: 12px; color: #aaa; font-weight: bold; text-transform: uppercase; margin-right: 5px;}
 
         .search-bar-container {
             background: #25252e; padding: 10px 30px; border-bottom: 2px solid #444;
@@ -92,6 +93,7 @@
         button.setup-btn.configured { background: #27ae60; }
         
         .dm-toggle-btn { background: #34495e; display: flex; align-items: center; gap: 6px; }
+        .potion-btn { background: #c0392b; font-size: 11px; padding: 6px 10px; }
 
         /* Main Grid */
         main {
@@ -114,18 +116,21 @@
             width: 100%; height: 200px; background: #111; display: flex;
             justify-content: center; align-items: center; overflow: hidden;
             border-bottom: 1px solid #444; position: relative;
+            transition: height 0.3s ease;
         }
         .image-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
         .image-placeholder { color: #666; font-size: 14px; }
 
         .card-content { padding: 15px; display: flex; flex-direction: column; gap: 10px; flex-grow: 1; }
         .item-title { font-size: 20px; font-weight: bold; margin: 0; color: #fff; }
+        .true-name-reveal { font-size: 12px; color: #f1c40f; margin-top: -6px; font-style: italic; }
 
         .badges { display: flex; flex-wrap: wrap; gap: 6px; }
         .badge { background: #444; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; color: #ddd; }
         .badge.attunement { background: #8e44ad; color: white; }
         .badge.owner { background: #2980b9; color: white; }
         .badge.equipped { background: #27ae60; color: white; }
+        .badge.keeper { background: #e67e22; color: white; }
         .badge.qty { background: #e67e22; color: white; font-size: 12px; }
         
         .description-box {
@@ -177,36 +182,15 @@
 
         /* Privacy Ribbon */
         .privacy-ribbon {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100px;
-            height: 100px;
-            overflow: hidden;
-            z-index: 1000;
+            position: fixed; bottom: 0; left: 0; width: 100px; height: 100px; overflow: hidden; z-index: 1000;
         }
         .privacy-ribbon span {
-            position: absolute;
-            display: block;
-            width: 150px;
-            padding: 6px 0;
-            background-color: #c0392b;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-            color: #fff;
-            font-size: 11px;
-            font-weight: bold;
-            text-align: center;
-            text-transform: uppercase;
-            text-decoration: none;
-            bottom: 22px;
-            left: -40px;
-            transform: rotate(45deg);
-            transition: background-color 0.2s;
-            cursor: pointer;
+            position: absolute; display: block; width: 150px; padding: 6px 0; background-color: #c0392b;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5); color: #fff; font-size: 11px; font-weight: bold;
+            text-align: center; text-transform: uppercase; text-decoration: none;
+            bottom: 22px; left: -40px; transform: rotate(45deg); transition: background-color 0.2s; cursor: pointer;
         }
-        .privacy-ribbon:hover span {
-            background-color: #e74c3c;
-        }
+        .privacy-ribbon:hover span { background-color: #e74c3c; }
     </style>
 </head>
 <body>
@@ -456,10 +440,8 @@ function doPost(e) {
 
         // --- BUILD INFO START ---
         const BUILD_INFO = {
-            version: "2026.03.21.14",
-            commit: "073e3cb3b3b89136a671f211f4daf804d08662fa",
-            shortSha: "073e3cb",
-            repo: "margath/item-tracker"
+            version: "Local Build",
+            repo: "LOCAL"
         };
         // --- BUILD INFO END ---
 
@@ -779,6 +761,7 @@ function doPost(e) {
             if (item) { item.owner = 'Party Stash'; item.isEquipped = false; renderAll(); triggerAutoSave(); }
         }
 
+        // --- Consumable Logic (Phantoms & Reals) ---
         function incrementQuantity(id, phantomDataStr) {
             if (String(id).startsWith('phantom-')) {
                 const data = JSON.parse(decodeURIComponent(phantomDataStr));
@@ -798,6 +781,23 @@ function doPost(e) {
             if (String(id).startsWith('phantom-')) return;
             const item = state.items.find(i => String(i.id) === String(id));
             if (item && item.quantity > 0) { item.quantity--; renderAll(); triggerAutoSave(); }
+        }
+
+        function returnOneItem(id) { 
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item && item.quantity > 0) { 
+                item.quantity--; 
+                
+                // Safely create a duplicate for the stash
+                let stashItem = JSON.parse(JSON.stringify(item));
+                stashItem.id = Date.now() + Math.floor(Math.random() * 1000);
+                stashItem.owner = 'Party Stash';
+                stashItem.quantity = 1;
+                stashItem.isEquipped = false;
+                
+                state.items.unshift(stashItem);
+                renderAll(); triggerAutoSave(); 
+            }
         }
 
         // --- Multi-DM Cryptography ---
@@ -1106,16 +1106,33 @@ function doPost(e) {
                 });
             }
 
+            // Apply Hierarchical + Potion Ordering Sort
             displayItems.sort((a, b) => {
                 const getRank = (owner) => {
                     if (state.currentUser && owner === state.currentUser.name) return 0;
                     if (owner === "Party Stash") return 1;
                     return 2;
                 };
+
                 const rankA = getRank(a.owner);
                 const rankB = getRank(b.owner);
+
                 if (rankA !== rankB) return rankA - rankB;
                 if (a.owner !== b.owner) return a.owner.localeCompare(b.owner);
+
+                // Predefined ordering for potions to keep them cleanly grouped
+                const potionOrder = {
+                    "Potion of Healing": 1,
+                    "Potion of Greater Healing": 2,
+                    "Potion of Superior Healing": 3,
+                    "Potion of Supreme Healing": 4
+                };
+                
+                const orderA = potionOrder[a.trueName] || 99;
+                const orderB = potionOrder[b.trueName] || 99;
+                
+                if (orderA !== orderB) return orderA - orderB;
+
                 return (a.apparentName || "").localeCompare(b.apparentName || "");
             });
 
@@ -1196,7 +1213,12 @@ function doPost(e) {
                         if (item.requiresAttunement) {
                             playerActionsHtml += `<button onclick="togglePlayerItemAction('${item.id}', 'isAttuned')" style="background: ${item.isAttuned ? '#8e44ad' : '#9b59b6'}; flex:1;">${item.isAttuned ? '🔗 Break Attunement' : '🔗 Attune'}</button>`;
                         }
-                        playerActionsHtml += `<button onclick="returnItem('${item.id}')" style="background: #e67e22; flex:1;">📦 Return</button>`;
+                        
+                        if (item.quantity > 0 && (item.isStandard || item.isConsumable)) {
+                            playerActionsHtml += `<button onclick="returnOneItem('${item.id}')" style="background: #d35400; flex:1;" title="Return 1 to Stash (Keep card)">📦 Return 1</button>`;
+                        }
+                        
+                        playerActionsHtml += `<button onclick="returnItem('${item.id}')" style="background: #e67e22; flex:1;" title="Return entirely to Stash">📦 Return ${item.quantity > 1 ? 'All' : ''}</button>`;
                     }
                 }
                 

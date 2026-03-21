@@ -178,7 +178,7 @@
             .image-container { height: 120px; } 
             header { padding: 10px 15px; flex-direction: column; align-items: stretch; gap: 10px; }
             .header-controls { justify-content: space-between; }
-            .github-links { display: none; } 
+            .github-links { display: none !important; } 
         }
     </style>
 </head>
@@ -353,17 +353,7 @@ function doPost(e) {
 
     <div id="app-workspace" style="display: flex; flex-direction: column; min-height: 100vh;">
         <header>
-            <h1 id="main-page-title">
-                Item Tracker
-                <div class="github-links" style="display: inline-flex; gap: 5px; font-size: 11px; margin-left: 15px;">
-                    <a href="https://github.com/margath/item-tracker/releases/tag/2026.03.21.7" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                        🐙 2026.03.21.7
-                    </a>
-                    <a href="https://github.com/margath/item-tracker/commit/5ffaf573c7c083d218b15dda1bcd5a13d8664a71" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                        📄 5ffaf57
-                    </a>
-                </div>
-            </h1>
+            <h1 id="main-page-title">Item Tracker</h1>
             <div class="header-controls">
                 <div class="user-info" id="user-info-display" style="display: none;">Logged in as: <span id="display-user-name"></span></div>
                 
@@ -401,6 +391,14 @@ function doPost(e) {
 
     <script>
         const CAMPAIGN_KEY = "SecretDragonHoard2026"; 
+
+        // --- Build Info Config (Populated by GitHub Actions) ---
+        const BUILD_INFO = {
+            version: "Local Build",
+            commit: "Uncommitted",
+            shortSha: "dev",
+            repo: "LOCAL"
+        };
 
         const state = {
             currentUser: null,
@@ -481,7 +479,6 @@ function doPost(e) {
         const srdModal = document.getElementById('srd-modal');
 
         window.onload = () => {
-            // Check for obfuscated Auto-Join via URL Parameter
             const urlParams = new URLSearchParams(window.location.search);
             const joinCode = urlParams.get('j');
             
@@ -490,7 +487,7 @@ function doPost(e) {
                     let decodedId = atob(joinCode);
                     state.scriptUrl = "https://script.google.com/macros/s/" + decodedId + "/exec";
                     localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
-                    window.history.replaceState({}, document.title, window.location.pathname); // Clean the address bar
+                    window.history.replaceState({}, document.title, window.location.pathname); 
                 } catch(e) { console.error("Invalid join code"); }
             } else {
                 state.scriptUrl = localStorage.getItem('lootTrackerScriptUrl') || "";
@@ -513,7 +510,6 @@ function doPost(e) {
                 container.style.display = 'none'; 
                 toggleBtn.style.display = 'block'; 
                 toggleBtn.innerText = '📖 Show Setup Instructions';
-                
                 configuredView.style.display = 'block';
                 inputView.style.display = 'none';
                 
@@ -802,7 +798,7 @@ function doPost(e) {
         function triggerAutoSave() {
             clearTimeout(autoSaveTimeout);
             const btn = document.getElementById('btn-load');
-            if(btn) btn.innerText = "⏳ Autosaving...";
+            if (btn) btn.innerText = "⏳ Autosaving...";
             autoSaveTimeout = setTimeout(() => { saveToCloud(true, true); }, 1500);
         }
 
@@ -984,31 +980,25 @@ function doPost(e) {
             const switchModeBtn = document.getElementById('switch-mode-btn');
 
             // Header UI states
-            if (state.scriptUrl) {
-                titleEl.innerHTML = `
-                    Item Tracker
+            let ghLinks = "";
+            if (BUILD_INFO.repo !== "LOCAL") {
+                ghLinks = `
                     <div class="github-links" style="display: inline-flex; gap: 5px; font-size: 11px; margin-left: 15px;">
-                        <a href="https://github.com/margath/item-tracker/releases/tag/2026.03.21.7" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                            🐙 2026.03.21.7
+                        <a href="https://github.com/${BUILD_INFO.repo}/releases/tag/${BUILD_INFO.version}" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                            🐙 ${BUILD_INFO.version}
                         </a>
-                        <a href="https://github.com/margath/item-tracker/commit/5ffaf573c7c083d218b15dda1bcd5a13d8664a71" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                            📄 5ffaf57
+                        <a href="https://github.com/${BUILD_INFO.repo}/commit/${BUILD_INFO.commit}" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
+                            📄 ${BUILD_INFO.shortSha}
                         </a>
                     </div>
                 `;
+            }
+
+            if (state.scriptUrl) {
+                titleEl.innerHTML = `Item Tracker ${ghLinks}`;
                 setupBtn.innerHTML = `⚙️✅ Setup`; setupBtn.classList.add('configured');
             } else {
-                titleEl.innerHTML = `
-                    Item Tracker <span style="font-size: 12px; color: #e67e22;">[Cartoon Demo Data]</span>
-                    <div class="github-links" style="display: inline-flex; gap: 5px; font-size: 11px; margin-left: 15px;">
-                        <a href="https://github.com/margath/item-tracker/releases/tag/2026.03.21.7" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                            🐙 2026.03.21.7
-                        </a>
-                        <a href="https://github.com/margath/item-tracker/commit/5ffaf573c7c083d218b15dda1bcd5a13d8664a71" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                            📄 5ffaf57
-                        </a>
-                    </div>
-                `;
+                titleEl.innerHTML = `Item Tracker <span style="font-size: 12px; color: #e67e22;">[Cartoon Demo Data]</span> ${ghLinks}`;
                 setupBtn.innerHTML = `⚙️ Setup`; setupBtn.classList.remove('configured');
             }
 

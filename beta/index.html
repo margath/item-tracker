@@ -762,12 +762,13 @@ function doPost(e) {
             state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
             if (state.scriptUrl) loadFromCloud(); else { loadDemoData(); renderAll(); }
         }
-        function disconnectCloud() {
-            state.scriptUrl = ""; localStorage.removeItem('lootTrackerScriptUrl');
-            document.getElementById('script-url-input').value = ""; closeSetup();
-            state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
-            loadDemoData(); renderAll();
-            showToast("Disconnected from Cloud.", "success");
+function disconnectCloud() {
+    state.scriptUrl = ""; localStorage.removeItem('lootTrackerScriptUrl');
+    document.getElementById('script-url-input').value = ""; closeModal('setup-screen');
+    state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
+    loadDemoData(); renderAll();
+    showToast("Disconnected from Cloud.", "success");
+}
         }
         function copyJoinLink() {
             let encodedCode = btoa(state.scriptUrl.match(/\/s\/([a-zA-Z0-9_-]+)\//)?.[1] || state.scriptUrl);

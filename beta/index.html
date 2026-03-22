@@ -545,7 +545,7 @@ function doPost(e) {
                 </div>
                 
                 <button id="switch-mode-btn" style="display: none; background: #9b59b6;" onclick="switchRole()">👁️ DM View</button>
-                <button id="login-btn-header" class="dm-toggle-btn" onclick="openModal('login-modal')">👤 Log In</button>
+                <button id="login-btn-header" class="dm-toggle-btn" onclick="openLoginModal()">👤 Log In</button>
                 <button id="live-sync-btn" style="background: #555;" onclick="toggleLiveSync()">🔄 Live Sync: OFF</button>
                 <button id="logout-btn-header" style="background: #555; display: none;" onclick="handleLogout()">Logout</button>
                 <button class="setup-btn" id="setup-btn-header" onclick="openSetup()">⚙️ Setup</button>
@@ -572,11 +572,11 @@ function doPost(e) {
     </div>
 
     <script>
+        const GITHUB_REPO = "YOUR_USERNAME/YOUR_REPO"; 
         const CAMPAIGN_KEY = "SecretDragonHoard2026"; 
         const REQUIRED_BACKEND_VERSION = "2.0";
 
         // --- BUILD INFO START ---
-        const GITHUB_REPO = "YOUR_USERNAME/YOUR_REPO"; 
         const BUILD_INFO = {
             version: "Local Build",
             repo: "LOCAL"
@@ -962,18 +962,22 @@ function doPost(e) {
 
         // --- Cryptography ---
         function getDisplayText(text, keeper, isPub = false) {
-            if (!text) return ""; if (isPub && !text.startsWith("ENC::")) return text;
+            if (text === null || text === undefined || text === "") return ""; 
+            let str = String(text); 
+            if (isPub && !str.startsWith("ENC::")) return str;
             const canView = state.currentUser && (state.currentUser.name === keeper || (state.isDmMode && keeper === "Shared"));
-            if (!text.startsWith("ENC::")) return (!canView && !isPub) ? `🔒 [Secret]` : text;
+            if (!str.startsWith("ENC::")) return (!canView && !isPub) ? `🔒 [Secret]` : str;
             if (!canView && !isPub) return `🔒 [Secret]`;
-            try { return CryptoJS.AES.decrypt(text.replace("ENC::", ""), keeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin).toString(CryptoJS.enc.Utf8) || `🔒 [Error]`; } catch(e) { return `🔒 [Error]`; }
+            try { return CryptoJS.AES.decrypt(str.replace("ENC::", ""), keeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin).toString(CryptoJS.enc.Utf8) || `🔒 [Error]`; } catch(e) { return `🔒 [Error]`; }
         }
         function getEditableText(text, keeper, isPub = false) {
-            if (!text) return ""; if (isPub && !text.startsWith("ENC::")) return text;
+            if (text === null || text === undefined || text === "") return ""; 
+            let str = String(text); 
+            if (isPub && !str.startsWith("ENC::")) return str;
             const canView = state.currentUser && (state.currentUser.name === keeper || (state.isDmMode && keeper === "Shared"));
-            if (!text.startsWith("ENC::")) return (!canView && !isPub) ? `🔒 Encrypted` : text;
+            if (!str.startsWith("ENC::")) return (!canView && !isPub) ? `🔒 Encrypted` : str;
             if (!canView && !isPub) return `🔒 Encrypted`;
-            try { return CryptoJS.AES.decrypt(text.replace("ENC::", ""), keeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin).toString(CryptoJS.enc.Utf8); } catch(e) { return ""; }
+            try { return CryptoJS.AES.decrypt(str.replace("ENC::", ""), keeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin).toString(CryptoJS.enc.Utf8); } catch(e) { return ""; }
         }
 
         // --- Card Actions & Editing ---
@@ -1173,7 +1177,7 @@ function doPost(e) {
                 ['logout-btn-header', 'user-info-display', 'add-dropdown-container', 'switch-mode-btn', 'dm-toolbar'].forEach(id => document.getElementById(id).style.display = 'none');
             }
 
-            // Ensure every player has a Treasure card (Runs for Demo & Cloud)
+            // Ensure every player has a Treasure card
             if (state.players.length > 0) {
                 state.players.forEach(p => {
                     if (p.character === 'DM' || p.name === 'Party Stash') return;

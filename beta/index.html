@@ -67,6 +67,12 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.4); border-bottom: 1px solid #444;
         }
         header h1 { margin: 0; font-size: 20px; color: #fff; display: flex; align-items: center; gap: 15px;}
+        
+        /* Header Tools Link Styles */
+        .header-tools-link { display: flex; align-items: center; opacity: 0.6; transition: opacity 0.2s; }
+        .header-tools-link:hover { opacity: 1; }
+        .header-tools-link img { border-radius: 4px; background: white; padding: 2px; width: 30px; height: 30px; }
+        
         .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap;}
         .user-info { font-size: 14px; color: #aaa; margin-right: 10px; }
         .user-info span { font-weight: bold; color: #3498db; }
@@ -242,11 +248,32 @@
         .curse-box.hidden { border-style: dashed; border-color: #e67e22; color: #f39c12; background: #2a2015; }
         .hidden-text { color: #777; font-style: italic; text-align: center; padding: 10px 0; }
 
-        /* Wealth Inputs */
-        .wealth-inputs { display: flex; gap: 5px; flex-wrap: wrap; background: #1a1a20; padding: 10px; border-radius: 6px; border: 1px solid #555; margin-bottom: 5px; flex-shrink: 0;}
-        .wealth-field { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 40px; }
-        .wealth-field label { font-size: 10px; font-weight: bold; color: #aaa; }
-        .wealth-field input { width: 100%; padding: 4px; text-align: center; font-size: 14px; margin: 2px 0; background: #2a2a35; border: 1px solid #444;}
+        /* Unified Wealth Display/Input Styles (Improved Readability) */
+        .wealth-inputs { 
+            display: flex; gap: 8px; flex-wrap: wrap; background: #111; 
+            padding: 12px; border-radius: 8px; border: 1px solid #666; 
+            margin-bottom: 5px; flex-shrink: 0;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+        }
+        .wealth-field { 
+            display: flex; flex-direction: column; align-items: center; 
+            flex: 1; min-width: 50px; 
+        }
+        .wealth-field label { 
+            font-size: 11px; font-weight: bold; text-transform: uppercase; 
+            letter-spacing: 1px; margin-bottom: 3px; color: #fff;
+        }
+        .wealth-field label.c-pp { color: #bdc3c7; }
+        .wealth-field label.c-gp { color: #f1c40f; }
+        .wealth-field label.c-ep { color: #2ecc71; }
+        .wealth-field label.c-sp { color: #95a5a6; }
+        .wealth-field label.c-cp { color: #e67e22; }
+        
+        .wealth-field input { 
+            width: 100%; padding: 8px 4px; text-align: center; font-size: 18px; 
+            font-weight: bold; margin: 0; background: #2a2a35; border: 1px solid #555; 
+            border-radius: 4px; color: #f1c40f;
+        }
 
         /* Consumable Controls */
         .consume-controls {
@@ -572,6 +599,11 @@ function doPost(e) {
     <div id="app-workspace" style="display: flex; flex-direction: column; min-height: 100vh;">
         <header>
             <h1 id="main-page-title">
+                <div class="header-tools-link">
+                    <a href="https://tools.gameportal.win/" target="_blank" title="Visit GamePortal Tools">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=50x50&data=https%3A%2F%2Ftools.gameportal.win%2F" alt="QR">
+                    </a>
+                </div>
                 Item Tracker
                 <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/blob/main/CHANGELOG.md" target="_blank" style="color: #f39c12; font-size: 12px; margin-left: 10px; text-decoration: none;">✨ What's New?</a>
                 <span id="github-live-links"></span>
@@ -721,7 +753,7 @@ function doPost(e) {
 
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        function getPlayerDisplayName(p) { return p ? (p.character ? `${p.name} (${p.character})` : p.name) : "Party Stash"; }
+        function getPlayerDisplayName(p) { return p ? (p.character ? `${p.name} (${p.character})` : p.name) : null; }
         function parseWeight(str, qty) { const n = parseFloat(String(str).replace(/[^\d.]/g, '')); return isNaN(n) ? 0 : n * (qty || 1); }
         function parseWealth(data) {
             if (!data) return {};
@@ -1471,11 +1503,11 @@ function doPost(e) {
                 let canEdit = state.isDmMode || (state.currentUser && item.owner === state.currentUser.name);
                 wealthHtml = `
                     <div class="wealth-inputs" style="${canEdit ? '' : 'pointer-events:none; opacity:0.8;'}">
-                        <div class="wealth-field"><label>PP</label><input type="number" min="0" value="${w.pp||0}" oninput="updateWealth('${item.id}', 'pp', this.value, true)"></div>
-                        <div class="wealth-field"><label>GP</label><input type="number" min="0" value="${w.gp||0}" oninput="updateWealth('${item.id}', 'gp', this.value, true)"></div>
-                        <div class="wealth-field"><label>EP</label><input type="number" min="0" value="${w.ep||0}" oninput="updateWealth('${item.id}', 'ep', this.value, true)"></div>
-                        <div class="wealth-field"><label>SP</label><input type="number" min="0" value="${w.sp||0}" oninput="updateWealth('${item.id}', 'sp', this.value, true)"></div>
-                        <div class="wealth-field"><label>CP</label><input type="number" min="0" value="${w.cp||0}" oninput="updateWealth('${item.id}', 'cp', this.value, true)"></div>
+                        <div class="wealth-field"><label class="c-pp">PP</label><input type="number" min="0" value="${w.pp||0}" oninput="updateWealth('${item.id}', 'pp', this.value, true)"></div>
+                        <div class="wealth-field"><label class="c-gp">GP</label><input type="number" min="0" value="${w.gp||0}" oninput="updateWealth('${item.id}', 'gp', this.value, true)"></div>
+                        <div class="wealth-field"><label class="c-ep">EP</label><input type="number" min="0" value="${w.ep||0}" oninput="updateWealth('${item.id}', 'ep', this.value, true)"></div>
+                        <div class="wealth-field"><label class="c-sp">SP</label><input type="number" min="0" value="${w.sp||0}" oninput="updateWealth('${item.id}', 'sp', this.value, true)"></div>
+                        <div class="wealth-field"><label class="c-cp">CP</label><input type="number" min="0" value="${w.cp||0}" oninput="updateWealth('${item.id}', 'cp', this.value, true)"></div>
                         <div style="width:100%; margin-top:5px;"><label style="font-size:10px; color:#aaa; font-weight:bold;">Gems & Art Objects</label><input type="text" value="${w.gems||""}" placeholder="e.g. 2x Rubies (50gp)" oninput="updateWealth('${item.id}', 'gems', this.value, true)" style="margin:0; font-size:12px; padding:6px;"></div>
                     </div>
                 `;
@@ -1576,11 +1608,11 @@ function doPost(e) {
                     <div class="form-group"><label>Container Name</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value, true)"></div>
                     
                     <div class="wealth-inputs">
-                        <div class="wealth-field"><label>PP</label><input type="number" min="0" value="${w.pp||0}" oninput="updateWealth('${item.id}', 'pp', this.value, true)"></div>
-                        <div class="wealth-field"><label>GP</label><input type="number" min="0" value="${w.gp||0}" oninput="updateWealth('${item.id}', 'gp', this.value, true)"></div>
-                        <div class="wealth-field"><label>EP</label><input type="number" min="0" value="${w.ep||0}" oninput="updateWealth('${item.id}', 'ep', this.value, true)"></div>
-                        <div class="wealth-field"><label>SP</label><input type="number" min="0" value="${w.sp||0}" oninput="updateWealth('${item.id}', 'sp', this.value, true)"></div>
-                        <div class="wealth-field"><label>CP</label><input type="number" min="0" value="${w.cp||0}" oninput="updateWealth('${item.id}', 'cp', this.value, true)"></div>
+                        <div class="wealth-field"><label class="c-pp">PP</label><input type="number" min="0" value="${w.pp||0}" oninput="updateWealth('${item.id}', 'pp', this.value, true)"></div>
+                        <div class="wealth-field"><label class="c-gp">GP</label><input type="number" min="0" value="${w.gp||0}" oninput="updateWealth('${item.id}', 'gp', this.value, true)"></div>
+                        <div class="wealth-field"><label class="c-ep">EP</label><input type="number" min="0" value="${w.ep||0}" oninput="updateWealth('${item.id}', 'ep', this.value, true)"></div>
+                        <div class="wealth-field"><label class="c-sp">SP</label><input type="number" min="0" value="${w.sp||0}" oninput="updateWealth('${item.id}', 'sp', this.value, true)"></div>
+                        <div class="wealth-field"><label class="c-cp">CP</label><input type="number" min="0" value="${w.cp||0}" oninput="updateWealth('${item.id}', 'cp', this.value, true)"></div>
                         <div style="width:100%; margin-top:5px;"><label style="font-size:10px; color:#aaa; font-weight:bold;">Gems & Art Objects</label><input type="text" value="${w.gems||""}" placeholder="e.g. 2x Rubies (50gp)" oninput="updateWealth('${item.id}', 'gems', this.value, true)" style="margin:0; font-size:12px; padding:6px;"></div>
                     </div>
 

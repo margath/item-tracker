@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Item Tracker</title>
+    <title>Party Loot & Campaign Tracker</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
         body {
@@ -11,6 +11,18 @@
             background-color: #1e1e24; color: #e0e0e0; display: flex;
             flex-direction: column; min-height: 100vh;
         }
+
+        /* Toast Notifications */
+        #toast-notification {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: #333; color: #fff; padding: 12px 24px; border-radius: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 10000;
+            font-size: 14px; font-weight: bold; opacity: 0; pointer-events: none;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        #toast-notification.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        #toast-notification.error { background: #e74c3c; }
+        #toast-notification.success { background: #2ecc71; }
 
         /* Modals & Overlays */
         .modal-overlay {
@@ -24,7 +36,7 @@
             width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto;
         }
         .modal-box h2 { margin-top: 0; color: #fff; border-bottom: 1px solid #555; padding-bottom: 10px; }
-        .modal-box input, .modal-box select, .modal-box textarea {
+        .modal-box input[type="text"], .modal-box input[type="number"], .modal-box input[type="password"], .modal-box select, .modal-box textarea {
             width: 100%; padding: 10px; margin: 10px 0; border-radius: 4px;
             border: 1px solid #555; background: #1e1e24; color: white;
             box-sizing: border-box; font-family: inherit;
@@ -38,7 +50,7 @@
             font-size: 11px; overflow-x: auto; color: #a6e22e; cursor: text;
         }
 
-        /* Catalog List Styles */
+        /* SRD List Styles */
         .srd-item {
             padding: 12px 15px; border-bottom: 1px solid #333; display: flex; 
             justify-content: space-between; align-items: center; background: #1e1e24;
@@ -67,17 +79,20 @@
 
         .search-bar-container {
             background: #25252e; padding: 10px 30px; border-bottom: 2px solid #444;
-            display: flex; justify-content: center;
+            display: flex; justify-content: center; gap: 10px; align-items: center;
         }
         .search-bar-container input {
             width: 100%; max-width: 500px; padding: 10px 15px; border-radius: 20px;
             border: 1px solid #555; background: #1e1e24; color: white; font-size: 14px;
         }
+        
+        .view-toggles button { background: #34495e; padding: 6px 10px; font-size: 12px; border-radius: 4px; }
+        .view-toggles button.active { background: #3498db; }
 
-        /* Buttons */
+        /* Buttons & Dropdowns */
         button {
             background: #3498db; color: white; border: none; padding: 8px 12px; 
-            border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;
+            border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; transition: background 0.2s;
         }
         button:hover:not(:disabled) { background: #2980b9; }
         button:disabled { background: #555; color: #888; cursor: not-allowed; }
@@ -88,29 +103,86 @@
         button.srd-btn:hover:not(:disabled) { background: #8e44ad; }
         button.del-btn { background: #e74c3c; padding: 6px 10px; font-size: 12px;}
         button.del-btn:hover:not(:disabled) { background: #c0392b; }
-        
         button.setup-btn { background: #7f8c8d; }
         button.setup-btn.configured { background: #27ae60; }
-        
         .dm-toggle-btn { background: #34495e; display: flex; align-items: center; gap: 6px; }
         .potion-btn { background: #c0392b; font-size: 11px; padding: 6px 10px; }
 
+        /* Functional CSS Dropdown */
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-content {
+            display: none; position: absolute; right: 0; top: 100%; background-color: #2a2a35;
+            min-width: 220px; box-shadow: 0px 8px 16px rgba(0,0,0,0.6); z-index: 200;
+            border: 1px solid #555; border-radius: 6px; overflow: hidden; margin-top: 8px;
+        }
+        .dropdown-content.show { display: flex; flex-direction: column; }
+        .dropdown-content a {
+            color: white; padding: 12px 16px; text-decoration: none; display: block;
+            font-size: 13px; font-weight: bold; border-bottom: 1px solid #333; transition: background 0.2s;
+        }
+        .dropdown-content a:hover { background-color: #34495e; }
+        .dropdown-content a:last-child { border-bottom: none; }
+
         /* Main Grid */
-        main {
+        main.grid-view {
             padding: 30px; display: grid; gap: 25px; flex-grow: 1;
             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            grid-auto-flow: dense;
             align-content: start;
         }
+        
+        main.table-view { padding: 30px; display: block; flex-grow: 1; overflow-x: auto; }
 
-        /* Loot Card */
+        /* Loot Card Base */
         .loot-card {
             background: #2a2a35; border-radius: 10px; overflow: hidden;
             box-shadow: 0 6px 15px rgba(0,0,0,0.3); border: 1px solid #444;
             display: flex; flex-direction: column; position: relative;
+            transition: outline 0.2s;
         }
         .loot-card.phantom { opacity: 0.7; border: 1px dashed #555; }
         .loot-card.identified { border-color: #f1c40f; }
         .loot-card.cursed { border-color: #e74c3c; }
+        .loot-card.type-note { border-color: #95a5a6; background: #2c3e50; }
+        .loot-card.type-quest { border-color: #3498db; background: #1f2a36; }
+        
+        /* Print Selection Checkbox */
+        .print-checkbox {
+            position: absolute; top: 10px; left: 10px; z-index: 20; display: none;
+            width: 20px; height: 20px; cursor: pointer;
+        }
+        body.print-mode-active .print-checkbox { display: block; }
+        body.print-mode-active .loot-card { outline: 2px dashed #555; }
+        body.print-mode-active .loot-card:has(.print-checkbox:checked) { outline: 3px solid #2ecc71; box-shadow: 0 0 15px rgba(46, 204, 113, 0.5); }
+
+        /* Dynamic Card Sizes */
+        .card-standard { grid-column: span 1; }
+        .card-mini { grid-column: span 1; font-size: 0.85em; }
+        .card-mini .image-container { height: 120px; }
+        .card-mini .item-title { font-size: 16px; }
+
+        @media (min-width: 700px) {
+            .card-medium { grid-column: span 2; flex-direction: row; }
+            .card-medium .image-container { width: 40%; height: auto; border-right: 1px solid #444; border-bottom: none; }
+            .card-large { grid-column: span 2; grid-row: span 2; min-height: 600px; }
+            .card-large .image-container { height: 300px; }
+        }
+        
+        .card-half-page { grid-column: 1 / -1; min-height: 48vh; flex-direction: row; }
+        .card-half-page .image-container { width: 40%; height: auto; border-right: 1px solid #444; border-bottom: none; }
+        .card-full-page { grid-column: 1 / -1; min-height: 200px; height: fit-content; }
+        .card-full-page .image-container { height: 40vh; }
+        
+        /* Collapsed Quest Card */
+        .card-collapsed { grid-column: 1 / -1; flex-direction: row; height: 50px; align-items: center; padding: 0 15px; cursor: pointer; min-height: auto;}
+        .card-collapsed .image-container, .card-collapsed .description-box, .card-collapsed .badges, .card-collapsed .card-actions { display: none; }
+        .card-collapsed .card-content { padding: 0; flex-direction: row; align-items: center; justify-content: space-between; width: 100%;}
+        .card-collapsed:hover { background: #34495e; }
+
+        @media (max-width: 699px) {
+            .card-medium, .card-half-page { flex-direction: column; }
+            .card-medium .image-container, .card-half-page .image-container { width: 100%; height: 200px; border-right: none; border-bottom: 1px solid #444; }
+        }
 
         .image-container {
             width: 100%; height: 200px; background: #111; display: flex;
@@ -121,17 +193,27 @@
         .image-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
         .image-placeholder { color: #666; font-size: 14px; }
 
-        .card-content { padding: 15px; display: flex; flex-direction: column; gap: 10px; flex-grow: 1; }
+        .card-content { padding: 15px; display: flex; flex-direction: column; gap: 10px; flex-grow: 1; position: relative;}
         .item-title { font-size: 20px; font-weight: bold; margin: 0; color: #fff; }
         .true-name-reveal { font-size: 12px; color: #f1c40f; margin-top: -6px; font-style: italic; }
 
+        /* Badges & Rarity Colors */
         .badges { display: flex; flex-wrap: wrap; gap: 6px; }
         .badge { background: #444; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; color: #ddd; }
         .badge.attunement { background: #8e44ad; color: white; }
         .badge.owner { background: #2980b9; color: white; }
-        .badge.equipped { background: #27ae60; color: white; }
+        .badge.location { background: #27ae60; color: white; }
         .badge.keeper { background: #e67e22; color: white; }
         .badge.qty { background: #e67e22; color: white; font-size: 12px; }
+        .badge.type { background: #16a085; color: white; }
+
+        .badge.mundane { background: #7f8c8d; color: white; }
+        .badge.common { background: #bdc3c7; color: black; }
+        .badge.uncommon { background: #2ecc71; color: white; }
+        .badge.rare { background: #3498db; color: white; }
+        .badge.epic { background: #9b59b6; color: white; }
+        .badge.legendary { background: #e67e22; color: white; }
+        .badge.artifact { background: #e74c3c; color: white; }
         
         .description-box {
             background: #1e1e24; padding: 10px; border-radius: 6px;
@@ -143,6 +225,12 @@
         }
         .curse-box.hidden { border-style: dashed; border-color: #e67e22; color: #f39c12; background: #2a2015; }
         .hidden-text { color: #777; font-style: italic; text-align: center; padding: 10px 0; }
+
+        /* Wealth Inputs */
+        .wealth-inputs { display: flex; gap: 5px; flex-wrap: wrap; background: #1a1a20; padding: 10px; border-radius: 6px; border: 1px solid #555; margin-bottom: 5px;}
+        .wealth-field { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 40px; }
+        .wealth-field label { font-size: 10px; font-weight: bold; color: #aaa; }
+        .wealth-field input { width: 100%; padding: 4px; text-align: center; font-size: 14px; margin: 2px 0; background: #2a2a35; border: 1px solid #444;}
 
         /* Consumable Controls */
         .consume-controls {
@@ -168,72 +256,147 @@
             padding-top: 10px; border-top: 1px dashed #444; margin-top: auto; gap: 10px; flex-wrap: wrap;
         }
 
-        table.encumbrance-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;}
-        table.encumbrance-table th, table.encumbrance-table td { padding: 10px; text-align: left; border-bottom: 1px solid #444; }
+        /* Table View Styles */
+        table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; background: #2a2a35; border-radius: 8px; overflow: hidden;}
+        table.data-table th, table.data-table td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #444; }
+        table.data-table th { background: #1a1a20; color: #3498db; font-weight: bold; text-transform: uppercase; font-size: 11px; }
+        table.data-table tr:hover { background: #34495e; cursor: pointer; }
+        table.data-table td.secret { color: #f39c12; font-style: italic; }
+
+        /* Encumbrance Table */
+        table.encumbrance-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px;}
+        table.encumbrance-table th, table.encumbrance-table td { padding: 8px; text-align: left; border-bottom: 1px solid #444; }
         table.encumbrance-table th { background: #1e1e24; color: #3498db; }
 
+        /* Responsive Mobile Layout */
         @media (max-width: 600px) {
-            main { padding: 15px; gap: 15px; grid-template-columns: 1fr; }
-            .image-container { height: 120px; } 
+            main.grid-view { padding: 15px; gap: 15px; grid-template-columns: 1fr; }
             header { padding: 10px 15px; flex-direction: column; align-items: stretch; gap: 10px; }
             .header-controls { justify-content: space-between; }
             .github-links { display: none !important; } 
         }
 
-        /* Privacy Ribbon (z-index adjusted so it sits behind the edit modal) */
-        .privacy-ribbon {
-            position: fixed; bottom: 0; left: 0; width: 100px; height: 100px; overflow: hidden; z-index: 5;
+        /* Physical Print Media Styles */
+        @media print {
+            @page { margin: 10mm; }
+            body { background: white !important; color: black !important; }
+            header, .dm-toolbar, .search-bar-container, .modal-overlay, #toast-notification { display: none !important; }
+            
+            main.grid-view { display: flex !important; flex-wrap: wrap; gap: 5mm; padding: 0; justify-content: flex-start; }
+            .loot-card { 
+                display: none; 
+                page-break-inside: avoid; break-inside: avoid;
+                background: white !important; border: 1px solid #000 !important; box-shadow: none !important; color: black !important;
+                margin-bottom: 0 !important; outline: none !important;
+                overflow: hidden; box-sizing: border-box;
+            }
+            .loot-card:has(.print-checkbox:checked) { display: flex; flex-direction: column; }
+            
+            /* Sized for physical card sleeves (2.5 x 3.5 inches) */
+            .card-standard { width: 63mm; height: 88mm; }
+            .card-mini { width: 44mm; height: 63mm; }
+            .card-medium { width: 126mm; height: 88mm; }
+            .card-large { width: 126mm; height: 176mm; }
+            .card-half-page, .card-full-page { width: 100%; height: auto; }
+            
+            .card-content { padding: 4mm !important; gap: 2mm !important; flex-grow: 1; }
+            .item-title { font-size: 11pt !important; margin: 0; line-height: 1.1; color: black !important; }
+            .true-name-reveal { font-size: 8pt !important; color: #333 !important; }
+            
+            .badge { background: transparent !important; color: black !important; border: 0.5pt solid #000 !important; font-size: 7pt !important; padding: 1mm 2mm !important; border-radius: 2mm !important; }
+            .image-container { background: transparent !important; border-bottom: 1px solid #000 !important; height: 35%; min-height: 25mm; }
+            .image-placeholder { display: none; }
+            
+            .description-box, .curse-box { background: transparent !important; color: black !important; padding: 2mm !important; border: 0.5pt solid #000 !important; font-size: 8pt !important; line-height: 1.2; overflow: hidden; }
+            
+            .wealth-inputs { background: transparent !important; border: 1px solid #000 !important; padding: 2mm !important; flex-wrap: wrap; }
+            .wealth-field input { background: transparent !important; color: black !important; border: 1px solid #ccc !important; font-size: 10pt !important; padding: 1mm !important; }
+            .wealth-field label { color: black !important; font-size: 7pt !important; }
+            
+            .print-checkbox, .card-actions, .consume-controls button { display: none !important; }
+            .consume-controls { background: transparent !important; border: none !important; margin: 0 !important; padding: 0 !important; }
+            .consume-controls span { color: black !important; font-size: 9pt !important;}
         }
-        .privacy-ribbon span {
-            position: absolute; display: block; width: 150px; padding: 6px 0; background-color: #c0392b;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5); color: #fff; font-size: 11px; font-weight: bold;
-            text-align: center; text-transform: uppercase; text-decoration: none;
-            bottom: 22px; left: -40px; transform: rotate(45deg); transition: background-color 0.2s; cursor: pointer;
-        }
-        .privacy-ribbon:hover span { background-color: #e74c3c; }
     </style>
 </head>
 <body>
 
+    <div id="toast-notification"></div>
+
+    <div id="db-upgrade-modal" class="modal-overlay" style="display: none; z-index: 9999; background: rgba(0,0,0,0.95);">
+        <div class="modal-box" style="border-color: #e74c3c;">
+            <h2 style="color: #e74c3c;">⚠️ Database Upgrade Required</h2>
+            <p>Your Google Apps Script backend is outdated. This version of the app requires new database columns to prevent data loss.</p>
+            <ol class="setup-steps">
+                <li>Go to your Google Sheet and click <strong>Extensions > Apps Script</strong>.</li>
+                <li>Replace all existing code with the code below.</li>
+                <li>Click <strong>Deploy > Manage Deployments</strong>.</li>
+                <li>Click the Pencil Icon (Edit), change the Version dropdown to <strong>New Version</strong>, and click Deploy.</li>
+                <li>Refresh this page.</li>
+            </ol>
+            <button onclick="copyScriptCode()" class="add-btn" style="width: 100%; padding: 15px;">📋 Copy Upgraded Apps Script Code</button>
+        </div>
+    </div>
+
     <div id="login-modal" class="modal-overlay" style="display: none;">
         <div class="modal-box" style="text-align: center; width: 300px;">
             <h2>Select Character</h2>
-            <p style="font-size: 12px; color: #aaa;">Enter your PIN to manage your inventory, or unlock DM tools.</p>
+            <p style="font-size: 12px; color: #aaa;">Enter your PIN to manage your inventory.</p>
             <select id="login-name"></select>
             <input type="password" id="login-pin" placeholder="Enter PIN (e.g., 1111)">
             
             <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
                 <button class="add-btn" onclick="submitLogin(false)">👤 Enter as Player</button>
-                <button class="srd-btn" onclick="submitLogin(true)">🔒 Unlock DM View</button>
-                <button style="background: #555; margin-top: 5px;" onclick="closeLoginModal()">Cancel</button>
+                <button style="background: #555; margin-top: 5px;" onclick="closeModal('login-modal')">Cancel</button>
             </div>
         </div>
     </div>
 
-    <div id="catalog-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-box" style="max-width: 600px;">
-            <h2>📖 Standard Item Catalog</h2>
-            <p style="font-size: 12px; color: #aaa; margin-top: -5px;">Select an item to auto-fill its stats into a new, unidentified loot card.</p>
-            <input type="text" id="catalog-search-input" placeholder="Search catalog..." oninput="renderCatalogList()">
-            <div id="catalog-list-container" style="max-height: 350px; overflow-y: auto; margin-top: 10px; border: 1px solid #444; border-radius: 4px; background: #1e1e24;"></div>
-            <div style="text-align: right; margin-top: 15px;"><button style="background: #555;" onclick="closeCatalogModal()">Cancel</button></div>
+    <div id="unlock-dm-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box" style="text-align: center; width: 300px;">
+            <h2>Unlock DM View</h2>
+            <p style="font-size: 12px; color: #aaa;">Enter your PIN to switch to Dungeon Master tools.</p>
+            <input type="password" id="unlock-dm-pin" placeholder="Enter PIN">
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
+                <button class="srd-btn" onclick="submitUnlockDm()">🔒 Unlock</button>
+                <button style="background: #555;" onclick="closeModal('unlock-dm-modal')">Cancel</button>
+            </div>
         </div>
     </div>
 
     <div id="encumbrance-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-box" style="max-width: 600px;">
-            <h2>⚖️ Party Encumbrance Report</h2>
+        <div class="modal-box" style="max-width: 700px;">
+            <h2>⚖️ Advanced Encumbrance Report</h2>
+            <p style="font-size: 11px; color:#aaa; margin-top: -10px;">Coins calculated at 50 per lb. Combat weight includes Equipped, Belt, and Bandolier items.</p>
             <div id="encumbrance-content"></div>
             <div style="text-align: right; margin-top: 20px;">
-                <button style="background: #555;" onclick="closeEncumbranceModal()">Close Report</button>
+                <button style="background: #555;" onclick="closeModal('encumbrance-modal')">Close</button>
             </div>
+        </div>
+    </div>
+
+    <div id="wealth-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box" style="max-width: 500px;">
+            <h2>💎 Party Wealth Summary</h2>
+            <div id="wealth-content" style="font-size: 16px; line-height: 2;"></div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button style="background: #555;" onclick="closeModal('wealth-modal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="srd-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box" style="max-width: 600px;">
+            <h2>📖 D&D SRD Magic Items</h2>
+            <input type="text" id="srd-search-input" placeholder="Search SRD (e.g., Bag of Holding)..." oninput="renderSrdList()">
+            <div id="srd-list-container" style="max-height: 350px; overflow-y: auto; margin-top: 10px; border: 1px solid #444; border-radius: 4px; background: #1e1e24;"></div>
+            <div style="text-align: right; margin-top: 15px;"><button style="background: #555;" onclick="closeModal('srd-modal')">Cancel</button></div>
         </div>
     </div>
 
     <div id="setup-screen" class="modal-overlay" style="display: none;">
         <div class="modal-box">
             <h2>⚙️ Google Sheets Cloud Setup</h2>
-            
             <button id="toggle-instructions-btn" class="add-btn" style="display: none; margin-bottom: 15px; width: 100%;" onclick="toggleInstructions()">📖 Show Setup Instructions</button>
 
             <div id="setup-instructions-container">
@@ -245,8 +408,8 @@
                         <em>Col A: Player Name | Col B: PIN | Col C: Character Name</em>
                     </li>
                     <li>In the top menu, click <strong>Extensions > Apps Script</strong>.</li>
-                    <li>Delete any default code and paste the script below.</li>
-                    <li>Click <strong>Deploy > New deployment</strong> (or Manage Deployments > New Version).</li>
+                    <li>Delete any default code and paste the script below. <strong style="color:#e67e22;">(Update required for V2!)</strong></li>
+                    <li>Click <strong>Deploy > New deployment</strong> (or Manage Deployments > Edit > New Version).</li>
                     <li>Select type <strong>Web app</strong>. Set 'Execute as' to <strong>Me</strong> and 'Who has access' to <strong>Anyone</strong>.</li>
                     <li>Click Deploy, Authorize the permissions, and copy the generated <strong>Web app URL</strong>.</li>
                 </ol>
@@ -256,8 +419,8 @@
                     <pre class="code-block" id="app-script-code">
 const SHEET_NAME = "LootData"; 
 const PLAYER_SHEET = "Players"; 
-const STANDARD_SHEET = "StandardItems";
 const FOLDER_NAME = "Party_Loot_Images";
+const BACKEND_VERSION = "2.0";
 
 function getOrCreateFolder() { 
   const f = DriveApp.getFoldersByName(FOLDER_NAME); 
@@ -266,10 +429,11 @@ function getOrCreateFolder() {
 
 function doGet(e) {
   try { 
-    const ss = SpreadsheetApp.getActive();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) throw new Error("Could not connect to the Google Sheet.");
+
     let s = ss.getSheetByName(SHEET_NAME); 
-    let p = ss.getSheetByName(PLAYER_SHEET);
-    let std = ss.getSheetByName(STANDARD_SHEET);
+    let p = ss.getSheetByName(PLAYER_SHEET) || ss.getSheetByName("players") || ss.getSheetByName("Players ");
     
     let items = [];
     if (s) {
@@ -289,30 +453,26 @@ function doGet(e) {
     let players = [];
     if (p) {
       let data = p.getDataRange().getValues();
-      for(let i=1; i < data.length; i++) { 
-        if(data[i][0] && data[i][1]) {
-          players.push({
-            name: data[i][0].toString(), pin: data[i][1].toString(), character: data[i][2] ? data[i][2].toString() : ""
-          });
-        }
+      for(let i = 0; i < data.length; i++) { 
+        let name = String(data[i][0] || "").trim();
+        let pin = String(data[i][1] || "").trim();
+        let character = String(data[i][2] || "").trim();
+        
+        if (!name || !pin) continue;
+        if (name.toLowerCase() === "player name" || name.toLowerCase() === "name") continue;
+        
+        players.push({
+          name: name, 
+          pin: pin, 
+          character: character
+        });
       }
+    } else {
+        throw new Error("Could not find the 'Players' tab.");
     }
-
-    let standardItems = [];
-    if (std) {
-      let data = std.getDataRange().getValues();
-      if (data.length > 1) {
-        let headers = data[0];
-        for (let i = 1; i < data.length; i++) {
-          let item = {};
-          headers.forEach((h, index) => { item[h] = data[i][index]; });
-          standardItems.push(item);
-        }
-      }
-    }
-    return ContentService.createTextOutput(JSON.stringify({items: items, players: players, standardItems: standardItems})).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({backendVersion: BACKEND_VERSION, items: items, players: players})).setMimeType(ContentService.MimeType.JSON);
   } catch (err) { 
-    return ContentService.createTextOutput(JSON.stringify({items: [], players: [], standardItems: []})).setMimeType(ContentService.MimeType.JSON); 
+    return ContentService.createTextOutput(JSON.stringify({backendVersion: BACKEND_VERSION, items: [], players: [], error: err.toString()})).setMimeType(ContentService.MimeType.JSON); 
   }
 }
 
@@ -325,38 +485,23 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ url: "https://drive.google.com/uc?id=" + file.getId() })).setMimeType(ContentService.MimeType.JSON);
     }
     if (p.action === 'saveData') {
-      let s = SpreadsheetApp.getActive().getSheetByName(SHEET_NAME); 
-      if (!s) s = SpreadsheetApp.getActive().insertSheet(SHEET_NAME);
+      let s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME); 
+      if (!s) s = SpreadsheetApp.getActiveSpreadsheet().insertSheet(SHEET_NAME);
       s.clear(); 
       if (p.data && p.data.length > 0) {
-        let headers = ["id", "apparentName", "trueName", "imageUrl", "owner", "weight", "quantity", "isConsumable", "isStandard", "isEquipped", "requiresAttunement", "isAttuned", "isIdentified", "description", "isCurseRevealed", "curseDetectDC", "curseDetails", "secretKeeper"];
+        let headers = ["id", "cardType", "apparentName", "trueName", "imageUrl", "owner", "storageLocation", "weight", "quantity", "maxQuantity", "hasQuantity", "isConsumable", "isEquipped", "requiresAttunement", "isAttuned", "isIdentified", "description", "isCurseRevealed", "curseDetectDC", "curseDetails", "secretKeeper", "cardSize", "rarity", "wealthData", "isCollapsed"];
         let rows = [headers];
         p.data.forEach(item => { 
           let rowData = headers.map(h => {
             let val = item[h];
             if (val === undefined || val === null) return "";
             if (typeof val === 'boolean') return val ? "TRUE" : "FALSE";
+            if (typeof val === 'object') return JSON.stringify(val);
             return val;
           });
           rows.push(rowData); 
         });
         s.getRange(1, 1, rows.length, headers.length).setValues(rows);
-      }
-
-      let std = SpreadsheetApp.getActive().getSheetByName(STANDARD_SHEET); 
-      if (!std) std = SpreadsheetApp.getActive().insertSheet(STANDARD_SHEET);
-      std.clear(); 
-      if (p.standardData && p.standardData.length > 0) {
-        let stdHeaders = ["trueName", "apparentName", "description", "weight", "isConsumable"];
-        let stdRows = [stdHeaders];
-        p.standardData.forEach(item => {
-          let rowData = stdHeaders.map(h => {
-            let val = item[h];
-            return typeof val === 'boolean' ? (val ? "TRUE" : "FALSE") : (val || "");
-          });
-          stdRows.push(rowData);
-        });
-        std.getRange(1, 1, stdRows.length, stdHeaders.length).setValues(stdRows);
       }
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
@@ -372,23 +517,20 @@ function doPost(e) {
                 <label style="font-size: 13px; font-weight: bold; color: #fff;">Paste Your Web App URL Here:</label>
                 <input type="text" id="script-url-input" placeholder="https://script.google.com/macros/s/...">
                 <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
-                    <button style="background: #555;" onclick="closeSetup()">Close</button>
+                    <button style="background: #555;" onclick="closeModal('setup-screen')">Close</button>
                     <button class="add-btn" onclick="saveSetup()">Save & Sync</button>
                 </div>
             </div>
 
             <div id="setup-configured-view" style="display: none; text-align: center; margin-top: 20px; border-top: 1px dashed #555; padding-top: 20px;">
                 <h3 style="color: #2ecc71; margin: 0 0 10px 0;">✅ Connected to Cloud</h3>
-                <p style="font-size: 13px; color: #ccc; margin-bottom: 15px;">Have other players scan this QR code or use the link below to instantly join your session!</p>
-                
+                <p style="font-size: 13px; color: #ccc; margin-bottom: 15px;">Have players scan this QR code or use the link below to join!</p>
                 <img id="qr-code-img" src="" alt="QR Code" style="margin: 0 auto; background: white; padding: 10px; border-radius: 8px; width: 150px; height: 150px;">
-                
                 <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                     <button onclick="copyJoinLink()" style="background: #3498db;">🔗 Copy Join Link</button>
-                    <button style="background: #e74c3c;" onclick="disconnectCloud()">Disconnect App</button>
-                    <button style="background: #555;" onclick="closeSetup()">Close</button>
+                    <button id="btn-disconnect" style="background: #e74c3c;" onclick="confirmDisconnect()">Disconnect App</button>
+                    <button style="background: #555;" onclick="closeModal('setup-screen')">Close</button>
                 </div>
-                <p style="font-size: 11px; color: #777; margin-top: 10px;">* Note: The app must be hosted online for the QR code to function seamlessly on mobile devices.</p>
             </div>
         </div>
     </div>
@@ -397,506 +539,356 @@ function doPost(e) {
         <header>
             <h1 id="main-page-title">
                 Item Tracker
+                <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/blob/main/CHANGELOG.md" target="_blank" style="color: #f39c12; font-size: 12px; margin-left: 10px; text-decoration: none;">✨ What's New?</a>
                 <span id="github-live-links"></span>
             </h1>
             <div class="header-controls">
                 <div class="user-info" id="user-info-display" style="display: none;">Logged in as: <span id="display-user-name"></span></div>
                 
-                <button id="srd-btn-header" class="srd-btn" style="display: none;" onclick="openCatalogModal()">📖 Item Catalog</button>
-                <button id="add-btn-header" class="add-btn" style="display: none;" onclick="addNewItem()">+ Custom Item</button>
-                
-                <button id="switch-mode-btn" style="display: none; background: #9b59b6;" onclick="toggleViewMode()">👁️ Switch to DM View</button>
+                <div class="view-toggles">
+                    <button id="view-grid-btn" class="active" onclick="toggleViewMode('grid')">🗂️ Grid</button>
+                    <button id="view-table-btn" onclick="toggleViewMode('table')">📄 Table</button>
+                    <button id="view-print-btn" onclick="toggleViewMode('print')">🖨️ Print</button>
+                </div>
 
+                <div class="dropdown" id="add-dropdown-container" style="display: none;">
+                    <button class="add-btn" onclick="toggleDropdown(event, 'add-menu-dropdown')">+ Add New... ▼</button>
+                    <div id="add-menu-dropdown" class="dropdown-content">
+                        <a href="#" id="dropdown-srd" onclick="openModal('srd-modal'); return false;" style="color: #2ecc71;">📖 SRD Magic Item</a>
+                        <a href="#" onclick="addNewCard('Item'); return false;">🗡️ Standard Item</a>
+                        <a href="#" onclick="addNewCard('Treasure'); return false;" style="color: #f1c40f;">💎 Treasure / Wealth</a>
+                        <a href="#" onclick="addNewCard('Transcription'); return false;" style="color: #9b59b6;">📜 Transcription Supplies</a>
+                        <a href="#" onclick="addNewCard('Note'); return false;" style="color: #95a5a6;">📝 Note / Clue</a>
+                        <a href="#" id="dropdown-quest" onclick="addNewCard('Quest'); return false;" style="color: #3498db;">🗺️ Quest (DM Only)</a>
+                    </div>
+                </div>
+                
+                <button id="switch-mode-btn" style="display: none; background: #9b59b6;" onclick="switchRole()">👁️ DM View</button>
                 <button id="login-btn-header" class="dm-toggle-btn" onclick="openLoginModal()">👤 Log In</button>
-                
                 <button id="live-sync-btn" style="background: #555;" onclick="toggleLiveSync()">🔄 Live Sync: OFF</button>
-                
                 <button id="logout-btn-header" style="background: #555; display: none;" onclick="handleLogout()">Logout</button>
                 <button class="setup-btn" id="setup-btn-header" onclick="openSetup()">⚙️ Setup</button>
             </div>
         </header>
 
         <div id="dm-toolbar" class="dm-toolbar" style="display: none;">
-            <span class="dm-toolbar-label">Quick Actions:</span>
-            <button style="font-size: 11px;" onclick="openEncumbranceModal()">⚖️ Party Encumbrance</button>
+            <span class="dm-toolbar-label">DM Tools:</span>
+            <button class="potion-btn" onclick="quickAddPotion('Healing')">🧪 Potion of Healing</button>
+            <button class="potion-btn" onclick="quickAddPotion('Greater')">🧪 Greater Healing</button>
+            <button class="potion-btn" onclick="quickAddPotion('Superior')">🧪 Superior Healing</button>
+            <button class="potion-btn" onclick="quickAddPotion('Supreme')">🧪 Supreme Healing</button>
+            <div style="flex-grow: 1;"></div>
+            <button class="save-btn" style="font-size: 11px;" onclick="calculatePartyWealth()">💎 Party Wealth</button>
+            <button class="save-btn" style="font-size: 11px;" onclick="calculateEncumbrance()">⚖️ Encumbrance</button>
         </div>
 
         <div class="search-bar-container">
-            <input type="text" id="search-input" placeholder="🔍 Search items..." oninput="handleSearch(this.value)">
+            <input type="text" id="search-input" placeholder="🔍 Search items, notes, quests..." oninput="handleSearch(this.value)">
+            <button id="print-execute-btn" style="display: none; background: #2ecc71;" onclick="window.print()">🖨️ Print Selected Cards</button>
         </div>
 
-        <main id="loot-grid"></main>
+        <main id="loot-grid" class="grid-view"></main>
     </div>
 
     <script>
+        const GITHUB_REPO = "YOUR_USERNAME/YOUR_REPO"; 
         const CAMPAIGN_KEY = "SecretDragonHoard2026"; 
-
-        // --- DOM Elements ---
-        const gridEl = document.getElementById('loot-grid');
-        const loginModal = document.getElementById('login-modal');
-        const setupScreen = document.getElementById('setup-screen');
-        const encumbranceModal = document.getElementById('encumbrance-modal');
-        const catalogModal = document.getElementById('catalog-modal');
+        const REQUIRED_BACKEND_VERSION = "2.0";
 
         // --- BUILD INFO START ---
         const BUILD_INFO = {
-            version: "2026.03.22.41",
-            commit: "93756e4e7cff09a5163e3c94350d2e508b9d3c07",
-            shortSha: "93756e4",
-            repo: "margath/item-tracker"
+            version: "Local Build",
+            repo: "LOCAL"
         };
         // --- BUILD INFO END ---
 
         const state = {
-            currentUser: null,
-            isDmMode: false,
-            scriptUrl: localStorage.getItem('lootTrackerScriptUrl') || "",
-            searchQuery: "",
-            lastCloudHash: "", 
-            players: [], 
-            items: [],
-            standardCatalog: []
+            currentUser: null, isDmMode: false, scriptUrl: "", searchQuery: "",
+            lastCloudHash: "", players: [], items: [],
+            viewMode: 'grid', // 'grid', 'table', 'print'
+            liveSyncInterval: null
         };
 
-        const PHANTOM_POTIONS = [
-            { apparentName: "Red Potion", trueName: "Potion of Healing", description: "Regain 2d4 + 2 HP.", weight: "0.5 lbs" },
-            { apparentName: "Greater Red Potion", trueName: "Potion of Greater Healing", description: "Regain 4d4 + 4 HP.", weight: "0.5 lbs" },
-            { apparentName: "Superior Red Potion", trueName: "Potion of Superior Healing", description: "Regain 8d4 + 8 HP.", weight: "0.5 lbs" },
-            { apparentName: "Supreme Red Potion", trueName: "Potion of Supreme Healing", description: "Regain 10d4 + 20 HP.", weight: "0.5 lbs" }
-        ];
-
-        // Default Catalog (Seeds the Cloud if empty)
-        const DEFAULT_CATALOG = [
-            { apparentName: "Red Potion", trueName: "Potion of Healing", description: "Regain 2d4 + 2 HP.", weight: "0.5 lbs", isConsumable: true },
-            { apparentName: "Greater Red Potion", trueName: "Potion of Greater Healing", description: "Regain 4d4 + 4 HP.", weight: "0.5 lbs", isConsumable: true },
-            { apparentName: "Superior Red Potion", trueName: "Potion of Superior Healing", description: "Regain 8d4 + 8 HP.", weight: "0.5 lbs", isConsumable: true },
-            { apparentName: "Supreme Red Potion", trueName: "Potion of Supreme Healing", description: "Regain 10d4 + 20 HP.", weight: "0.5 lbs", isConsumable: true },
-            { apparentName: "Quiver of Arrows", trueName: "Arrows (20)", description: "Standard ammunition for a bow.", weight: "1 lbs", isConsumable: true },
-            { apparentName: "Wrapped Food", trueName: "Rations (1 Day)", description: "Travel rations consisting of dry foods suitable for extended travel.", weight: "2 lbs", isConsumable: true },
-            { apparentName: "Wooden Torch", trueName: "Torch", description: "Burns for 1 hour, providing 20ft bright light and 20ft dim light.", weight: "1 lbs", isConsumable: true },
-            { apparentName: "Coil of Rope", trueName: "Hempen Rope (50 feet)", description: "Standard sturdy rope, has 2 hit points and can be burst with a DC 17 Strength check.", weight: "10 lbs", isConsumable: false },
-            { apparentName: "Iron Spikes", trueName: "Pitons (10)", description: "Used with a hammer to secure a rope or create handholds.", weight: "2.5 lbs", isConsumable: true },
-            { apparentName: "Spiked Bag", trueName: "Caltrops (Bag of 20)", description: "Covers a 5-foot square area. Creatures moving through must pass a DC 15 Dex save or stop and take 1 piercing damage.", weight: "2 lbs", isConsumable: true }
-        ];
-
-        // Combine items with the same TrueName/Owner if they are "Standard" and "Identified"
-        function consolidateItems() {
-            let consolidated = [];
-            state.items.forEach(item => {
-                if (item.isStandard && item.isIdentified && !item.isPhantom) {
-                    let existing = consolidated.find(i => 
-                        i.isStandard && i.isIdentified && 
-                        i.trueName === item.trueName && 
-                        i.owner === item.owner && 
-                        i.isEquipped === item.isEquipped && 
-                        i.isEditing === false 
-                    );
-                    
-                    if (existing) {
-                        existing.quantity = (existing.quantity || 1) + (item.quantity || 1);
-                    } else {
-                        consolidated.push({...item});
-                    }
-                } else {
-                    consolidated.push({...item});
-                }
-            });
-            state.items = consolidated;
-        }
+        const STORAGE_LOCATIONS = ["Equipped/Worn", "Backpack", "Belt", "Bandolier", "Pouch", "Hidden"];
+        const RARITY_DCS = { "Mundane": "10", "Common": "10", "Uncommon": "12", "Rare": "15", "Epic": "17", "Legendary": "19", "Artifact": "22" };
+        const RARITY_OPTIONS = Object.keys(RARITY_DCS);
+        const CARD_SIZES = ["Standard", "Mini", "Medium", "Large", "Half Page", "Full Page"];
 
         // --- Demo Data ---
         function loadDemoData() {
             state.players = [
-                { name: "Hank", pin: "1111", character: "Ranger" },
-                { name: "Eric", pin: "2222", character: "Cavalier" },
-                { name: "Diana", pin: "3333", character: "Acrobat" },
-                { name: "Presto", pin: "4444", character: "Magician" },
-                { name: "Sheila", pin: "5555", character: "Thief" },
-                { name: "Bobby", pin: "6666", character: "Barbarian" },
+                { name: "Hank", pin: "1111", character: "Ranger" }, { name: "Eric", pin: "2222", character: "Cavalier" },
+                { name: "Diana", pin: "3333", character: "Acrobat" }, { name: "Presto", pin: "4444", character: "Magician" },
+                { name: "Sheila", pin: "5555", character: "Thief" }, { name: "Bobby", pin: "6666", character: "Barbarian" },
                 { name: "Dungeon Master", pin: "7777", character: "DM" }
             ];
             state.items = [
                 {
-                    id: 1, isIdentified: true, isStandard: false, apparentName: "Glowing Longbow", trueName: "Energy Bow", quantity: 1, isConsumable: false,
-                    imageUrl: "", weight: "2.5 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, owner: "Hank",
-                    secretKeeper: "Dungeon Master", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
-                    description: "Fires arrows of pure magical energy. Can be used to attack, create light, or form solid barriers and ropes." 
+                    id: 1, cardType: "Quest", isIdentified: true, apparentName: "Return Home", trueName: "Return Home", isCollapsed: false,
+                    owner: "Party Stash", cardSize: "Full Page", description: "Find a portal back to the amusement park and escape the Realm of Dungeons & Dragons.", secretKeeper: "Dungeon Master", curseDetails: "The Dungeon Master constantly gives vague riddles instead of actual directions."
                 },
                 {
-                    id: 2, isIdentified: true, isStandard: false, apparentName: "Green Wizard Hat", trueName: "Hat of Many Spells", quantity: 1, isConsumable: false,
-                    imageUrl: "", weight: "1 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, owner: "Presto",
-                    secretKeeper: "Dungeon Master", isCurseRevealed: true, curseDetectDC: "14", isEditing: false, 
+                    id: 2, cardType: "Quest", isIdentified: true, apparentName: "Defeat Venger", trueName: "Defeat Venger", isCollapsed: true,
+                    owner: "Party Stash", cardSize: "Half Page", description: "Venger, the Force of Evil, seeks the magical weapons of the party to conquer the realm.", secretKeeper: "Dungeon Master", curseDetails: "Venger rides a Nightmare and has powerful spellcasting abilities."
+                },
+                {
+                    id: 3, cardType: "Item", isIdentified: true, apparentName: "Glowing Longbow", trueName: "Energy Bow", hasQuantity: false, quantity: 1, maxQuantity: "", isConsumable: false,
+                    imageUrl: "", weight: "2.5 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, storageLocation: "Equipped/Worn", owner: "Hank", cardSize: "Standard", rarity: "Epic",
+                    secretKeeper: "Dungeon Master", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
+                    description: "Fires arrows of pure magical energy. Can be used to attack, create light, or form solid barriers and ropes."
+                },
+                {
+                    id: 4, cardType: "Item", isIdentified: true, apparentName: "Green Wizard Hat", trueName: "Hat of Many Spells", hasQuantity: true, quantity: 4, maxQuantity: "7", isConsumable: false,
+                    imageUrl: "", weight: "1 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, storageLocation: "Equipped/Worn", owner: "Presto", cardSize: "Standard", rarity: "Rare",
+                    secretKeeper: "Dungeon Master", isCurseRevealed: true, curseDetectDC: "14", isEditing: false,
                     description: "A magical hat that allows the wearer to pull out magical effects and objects.",
                     curseDetails: "The magic is highly unpredictable. Often produces comedic or mildly dangerous results instead of the desired spell."
                 },
                 {
-                    id: 3, isIdentified: false, isStandard: false, apparentName: "Glowing Red Scale", trueName: "Scale of Tiamat", quantity: 1, isConsumable: false,
-                    imageUrl: "", weight: "5 lbs", requiresAttunement: true, isAttuned: false, isEquipped: false, owner: "Party Stash",
-                    secretKeeper: "Dungeon Master", isCurseRevealed: false, curseDetectDC: "18", isEditing: false, 
-                    description: "A massive, heavy scale radiating immense heat and abjuration magic. Grants Resistance to Fire damage.",
-                    curseDetails: "Attracts the attention of evil dragons. Chromatic dragons within 5 miles become hostile and actively seek the bearer."
+                    id: 5, cardType: "Treasure", isIdentified: true, apparentName: "Dragon Hoard", trueName: "Dragon Hoard", hasQuantity: false,
+                    owner: "Party Stash", cardSize: "Medium", rarity: "Mundane", storageLocation: "Hidden", wealthData: { pp:10, gp:540, ep:0, sp:200, cp:0, gems: "1x Flawless Diamond (1000gp)" }, isEditing: false
                 },
                 {
-                    id: 4, isIdentified: true, isStandard: true, apparentName: "Glass Potion Bottle", trueName: "Potion of Healing", quantity: 2, isConsumable: true,
-                    imageUrl: "", weight: "0.5 lbs", requiresAttunement: false, isAttuned: false, isEquipped: false, owner: "Hank",
+                    id: 6, cardType: "Transcription", isIdentified: true, apparentName: "Magical Ink & Paper", trueName: "Magical Ink & Paper", hasQuantity: true, quantity: 3, maxQuantity: "", isConsumable: true,
+                    imageUrl: "", weight: "0.2 lbs", requiresAttunement: false, isAttuned: false, isEquipped: false, storageLocation: "Backpack", owner: "Presto", cardSize: "Mini", rarity: "Uncommon",
                     secretKeeper: "Shared", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
-                    description: "You regain hit points when you drink this potion. Regain 2d4 + 2 HP." 
+                    description: "Contains supplies to transcribe spells. 1 Charge = 1 Spell Level (50gp value)."
+                },
+                {
+                    id: 7, cardType: "Note", isIdentified: true, apparentName: "Mysterious Map Fragment", trueName: "Mysterious Map Fragment", hasQuantity: false,
+                    imageUrl: "", weight: "-", requiresAttunement: false, isAttuned: false, isEquipped: false, storageLocation: "Pouch", owner: "Sheila", cardSize: "Half Page", rarity: "Mundane",
+                    secretKeeper: "Shared", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
+                    description: "A torn piece of parchment showing the path through the Bog of Sorrows. There's a warning scribbled in the margin: 'Beware the Bullywug King!'"
                 }
             ];
-            state.standardCatalog = DEFAULT_CATALOG;
         }
 
         window.onload = () => {
-            // Restore Session State if coming back from Privacy Policy
-            const savedUser = sessionStorage.getItem('lootTrackerUser');
-            if (savedUser) {
-                try {
-                    state.currentUser = JSON.parse(savedUser);
-                    state.isDmMode = sessionStorage.getItem('lootTrackerDmMode') === 'true';
-                } catch(e) {}
-            }
-
+            fetchLiveGitHubInfo(); 
             const urlParams = new URLSearchParams(window.location.search);
             const joinCode = urlParams.get('j');
-            
             if (joinCode) {
                 try {
                     let decodedId = atob(joinCode);
                     state.scriptUrl = "https://script.google.com/macros/s/" + decodedId + "/exec";
                     localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
                     window.history.replaceState({}, document.title, window.location.pathname); 
-                } catch(e) { console.error("Invalid join code"); }
-            } else {
-                state.scriptUrl = localStorage.getItem('lootTrackerScriptUrl') || "";
-            }
-
+                } catch(e) {}
+            } else { state.scriptUrl = localStorage.getItem('lootTrackerScriptUrl') || ""; }
             document.getElementById('script-url-input').value = state.scriptUrl;
-            
-            if(state.scriptUrl) { loadFromCloud(); } 
-            else { loadDemoData(); renderAll(); }
+            if(state.scriptUrl) { loadFromCloud(); } else { loadDemoData(); renderAll(); }
         };
 
-        // --- Setup / Config ---
-        function openSetup() { 
-            const container = document.getElementById('setup-instructions-container');
-            const toggleBtn = document.getElementById('toggle-instructions-btn');
-            const configuredView = document.getElementById('setup-configured-view');
-            const inputView = document.getElementById('setup-input-view');
+        // --- Notifications, Modals & Dropdowns ---
+        function showToast(msg, type='error') {
+            const toast = document.getElementById('toast-notification');
+            toast.innerText = msg; toast.className = `show ${type}`;
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function getPlayerDisplayName(p) { return p ? (p.character ? `${p.name} (${p.character})` : p.name) : "Party Stash"; }
+        function parseWeight(str, qty) { const n = parseFloat(String(str).replace(/[^\d.]/g, '')); return isNaN(n) ? 0 : n * (qty || 1); }
+        function parseWealth(data) {
+            if (!data) return {};
+            if (typeof data === 'object') return data;
+            try { return JSON.parse(data); } catch(e) { return {}; }
+        }
+
+        function toggleDropdown(event, id) {
+            event.stopPropagation();
+            document.getElementById(id).classList.toggle("show");
+        }
+
+        window.onclick = function(event) {
+            if (!event.target.matches('.dropdown-content') && !event.target.closest('.dropdown-content') && !event.target.matches('.add-btn')) {
+                var dropdowns = document.getElementsByClassName("dropdown-content");
+                for (var i = 0; i < dropdowns.length; i++) {
+                    if (dropdowns[i].classList.contains('show')) dropdowns[i].classList.remove('show');
+                }
+            }
+        }
+
+        // --- 2-Step Confirmations ---
+        function confirmDelete(id) {
+            const btn = document.getElementById('del-btn-' + id);
+            if (!btn) return;
+            if (btn.dataset.confirming === "true") {
+                removeItem(id);
+            } else {
+                btn.dataset.confirming = "true"; btn.innerText = "Sure?"; btn.style.backgroundColor = "#8b0000";
+                setTimeout(() => {
+                    if (document.getElementById('del-btn-' + id)) {
+                        btn.dataset.confirming = "false"; btn.innerText = "Delete"; btn.style.backgroundColor = "#e74c3c";
+                    }
+                }, 3000);
+            }
+        }
+
+        function confirmDiscard(id) {
+            const btn = document.getElementById('discard-btn-' + id);
+            if (!btn) return;
+            if (btn.dataset.confirming === "true") {
+                discardEdit(id);
+            } else {
+                btn.dataset.confirming = "true"; btn.innerText = "Sure?"; btn.style.backgroundColor = "#e67e22";
+                setTimeout(() => {
+                    if (document.getElementById('discard-btn-' + id)) {
+                        btn.dataset.confirming = "false"; btn.innerText = "Discard"; btn.style.backgroundColor = "#7f8c8d";
+                    }
+                }, 3000);
+            }
+        }
+
+        function confirmDisconnect() {
+            const btn = document.getElementById('btn-disconnect');
+            if (btn.dataset.confirming === "true") {
+                disconnectCloud();
+            } else {
+                btn.dataset.confirming = "true"; btn.innerText = "Are you sure?"; btn.style.backgroundColor = "#8b0000";
+                setTimeout(() => {
+                    if (document.getElementById('btn-disconnect')) {
+                        btn.dataset.confirming = "false"; btn.innerText = "Disconnect App"; btn.style.backgroundColor = "#e74c3c";
+                    }
+                }, 3000);
+            }
+        }
+
+        async function fetchLiveGitHubInfo() {
+            if (GITHUB_REPO === "YOUR_USERNAME/YOUR_REPO" || BUILD_INFO.repo !== "LOCAL") return;
+            try {
+                const [commitRes, tagRes] = await Promise.all([fetch(`https://api.github.com/repos/${GITHUB_REPO}/commits/main`), fetch(`https://api.github.com/repos/${GITHUB_REPO}/tags`)]);
+                const commitData = await commitRes.json(); const tagData = await tagRes.json();
+                const shortSha = commitData.sha ? commitData.sha.substring(0, 7) : "dev";
+                const latestTag = tagData.length > 0 ? tagData[0].name : "Live Build";
+                document.getElementById('github-live-links').innerHTML = `
+                    <div class="github-links" style="display: inline-flex; gap: 5px; font-size: 11px; margin-left: 15px;">
+                        <a href="https://github.com/${GITHUB_REPO}/releases/tag/${latestTag}" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px;">🐙 ${latestTag}</a>
+                        <a href="https://github.com/${GITHUB_REPO}/commit/${commitData.sha}" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px;">📄 ${shortSha}</a>
+                    </div>`;
+            } catch (e) {}
+        }
+
+        // --- Setup Logic ---
+        async function openSetup() { 
+            document.getElementById('setup-instructions-container').style.display = state.scriptUrl ? 'none' : 'block';
+            document.getElementById('toggle-instructions-btn').style.display = state.scriptUrl ? 'block' : 'none';
+            document.getElementById('setup-configured-view').style.display = state.scriptUrl ? 'block' : 'none';
+            document.getElementById('setup-input-view').style.display = state.scriptUrl ? 'none' : 'block';
             
             if (state.scriptUrl) {
-                container.style.display = 'none'; toggleBtn.style.display = 'block'; toggleBtn.innerText = '📖 Show Setup Instructions';
-                configuredView.style.display = 'block'; inputView.style.display = 'none';
-                
-                let match = state.scriptUrl.match(/\/s\/([a-zA-Z0-9_-]+)\//);
-                let encodedCode = match && match[1] ? btoa(match[1]) : btoa(state.scriptUrl);
-
-                const baseUrl = window.location.href.split('?')[0];
-                const joinUrl = baseUrl + "?j=" + encodedCode;
-                const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" + encodeURIComponent(joinUrl);
-                document.getElementById('qr-code-img').src = qrUrl;
+                let encodedCode = btoa(state.scriptUrl.match(/\/s\/([a-zA-Z0-9_-]+)\//)?.[1] || state.scriptUrl);
+                document.getElementById('qr-code-img').src = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" + encodeURIComponent(window.location.href.split('?')[0] + "?j=" + encodedCode);
             } else {
-                container.style.display = 'block'; toggleBtn.style.display = 'none';
-                configuredView.style.display = 'none'; inputView.style.display = 'block';
+                try {
+                    if (navigator.clipboard && navigator.clipboard.readText) {
+                        const text = await navigator.clipboard.readText();
+                        if (text && text.includes("script.google.com/macros/s/")) {
+                            const inputField = document.getElementById('script-url-input');
+                            if (inputField.value !== text.trim()) {
+                                inputField.value = text.trim();
+                                showToast("App Script URL found in clipboard and pasted!", "success");
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn("Clipboard access denied or unavailable.");
+                }
             }
-            setupScreen.style.display = 'flex'; 
+            openModal('setup-screen');
         }
-        
         function toggleInstructions() {
-            const container = document.getElementById('setup-instructions-container');
-            const btn = document.getElementById('toggle-instructions-btn');
-            if (container.style.display === 'none') {
-                container.style.display = 'block'; btn.innerText = '📖 Hide Setup Instructions';
-            } else {
-                container.style.display = 'none'; btn.innerText = '📖 Show Setup Instructions';
-            }
+            const c = document.getElementById('setup-instructions-container');
+            c.style.display = c.style.display === 'none' ? 'block' : 'none';
         }
-
-        function closeSetup() { setupScreen.style.display = 'none'; }
-        
         function saveSetup() {
             state.scriptUrl = document.getElementById('script-url-input').value.trim();
-            localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
-            sessionStorage.removeItem('lootTrackerUser');
-            sessionStorage.removeItem('lootTrackerDmMode');
-            closeSetup();
+            localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl); closeModal('setup-screen');
             state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
-            if (state.scriptUrl) { loadFromCloud(); } else { loadDemoData(); renderAll(); }
+            if (state.scriptUrl) loadFromCloud(); else { loadDemoData(); renderAll(); }
         }
-
-        function copyScriptCode() {
-            const code = document.getElementById('app-script-code').innerText;
-            navigator.clipboard.writeText(code); alert("Apps Script code copied to clipboard!");
-        }
-
         function disconnectCloud() {
-            if(confirm("Are you sure you want to disconnect? You will return to the Demo Data.")) {
-                state.scriptUrl = "";
-                localStorage.removeItem('lootTrackerScriptUrl');
-                sessionStorage.removeItem('lootTrackerUser');
-                sessionStorage.removeItem('lootTrackerDmMode');
-                document.getElementById('script-url-input').value = "";
-                closeSetup();
-                state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
-                loadDemoData(); renderAll();
-            }
+            state.scriptUrl = ""; localStorage.removeItem('lootTrackerScriptUrl');
+            document.getElementById('script-url-input').value = ""; closeModal('setup-screen');
+            state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
+            loadDemoData(); renderAll();
+            showToast("Disconnected from Cloud.", "success");
         }
-
         function copyJoinLink() {
-            let match = state.scriptUrl.match(/\/s\/([a-zA-Z0-9_-]+)\//);
-            let encodedCode = match && match[1] ? btoa(match[1]) : btoa(state.scriptUrl);
-            const baseUrl = window.location.href.split('?')[0];
-            const joinUrl = baseUrl + "?j=" + encodedCode;
-            navigator.clipboard.writeText(joinUrl);
-            alert("Secure Join Link copied to clipboard!");
+            let encodedCode = btoa(state.scriptUrl.match(/\/s\/([a-zA-Z0-9_-]+)\//)?.[1] || state.scriptUrl);
+            navigator.clipboard.writeText(window.location.href.split('?')[0] + "?j=" + encodedCode);
+            showToast("Join Link copied!", "success");
         }
+        function copyScriptCode() { navigator.clipboard.writeText(document.getElementById('app-script-code').innerText); showToast("Code copied!", "success"); }
 
-        // --- Live Sync Logic ---
-        let liveSyncInterval = null;
-        function toggleLiveSync() {
-            if (!state.scriptUrl) return alert("Please complete the Cloud Setup first!");
-            const btn = document.getElementById('live-sync-btn');
-            
-            if (liveSyncInterval) {
-                clearInterval(liveSyncInterval); liveSyncInterval = null;
-                if (btn) { btn.innerHTML = '🔄 Live Sync: OFF'; btn.style.background = '#555'; }
-            } else {
-                liveSyncInterval = setInterval(() => {
-                    if (!state.items.some(i => i.isEditing)) { loadFromCloud(true); }
-                }, 15000);
-                if (btn) { btn.innerHTML = '🔄 Live Sync: ON'; btn.style.background = '#27ae60'; }
-                loadFromCloud(true); 
-            }
-        }
-
-        // --- Catalog Functions ---
-        function openCatalogModal() {
-            document.getElementById('catalog-search-input').value = "";
-            renderCatalogList(); 
-            catalogModal.style.display = 'flex';
-        }
-        function closeCatalogModal() { catalogModal.style.display = 'none'; }
-        function renderCatalogList() {
-            const query = document.getElementById('catalog-search-input').value.toLowerCase();
-            const container = document.getElementById('catalog-list-container');
-            container.innerHTML = "";
-            
-            const filtered = state.standardCatalog.filter(item => 
-                (item.trueName && item.trueName.toLowerCase().includes(query)) || 
-                (item.apparentName && item.apparentName.toLowerCase().includes(query))
-            );
-            
-            filtered.forEach((item) => {
-                const realIndex = state.standardCatalog.findIndex(i => i.trueName === item.trueName);
-                const el = document.createElement('div'); el.className = 'srd-item';
-                el.innerHTML = `
-                    <div>
-                        <div class="srd-item-name">${item.trueName}</div>
-                        <div class="srd-item-type">Standard ${item.isConsumable ? 'Consumable' : 'Item'}</div>
-                    </div>
-                    <button class="add-btn" style="padding: 4px 8px; font-size: 11px;" onclick="addFromCatalog(${realIndex})">+ Add</button>`;
-                container.appendChild(el);
-            });
-        }
-        
-        function addFromCatalog(index) {
-            const catItem = state.standardCatalog[index];
-            state.items.unshift({
-                id: Date.now(), isIdentified: false, isStandard: true, apparentName: catItem.apparentName, trueName: catItem.trueName, quantity: 1, isConsumable: catItem.isConsumable,
-                imageUrl: "", weight: catItem.weight, description: catItem.description, requiresAttunement: false, isAttuned: false, isEquipped: false,
-                owner: "Party Stash", secretKeeper: state.currentUser.name, isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: true 
-            });
-            closeCatalogModal(); renderAll(); triggerAutoSave();
-        }
-
-        function saveToCatalog(id) {
-            const item = state.items.find(i => String(i.id) === String(id));
-            if (!item) return;
-            
-            item.isStandard = true;
-            const exists = state.standardCatalog.find(c => c.trueName === item.trueName);
-            if (!exists) {
-                state.standardCatalog.push({
-                    apparentName: item.apparentName, trueName: item.trueName, description: item.description,
-                    weight: item.weight, isConsumable: item.isConsumable
-                });
-            }
-            alert(`Saved ${item.trueName} to the Standard Catalog!`);
-            renderAll(); triggerAutoSave();
-        }
-
-        // --- Helpers ---
-        function getPlayerDisplayName(playerData) {
-            if (!playerData) return "Party Stash";
-            return playerData.character ? `${playerData.name} (${playerData.character})` : playerData.name;
-        }
-        function parseWeight(weightStr, qty) {
-            const num = parseFloat(String(weightStr).replace(/[^\d.]/g, ''));
-            return isNaN(num) ? 0 : num * (qty || 1);
-        }
-
-        // --- Login Logic ---
+        // --- Login & Roles ---
         function openLoginModal() {
-            if (state.players.length === 0) { alert("No players found. Sync Data to load the roster."); openSetup(); return; }
+            if (state.players.length === 0) { showToast("No players found. Please Sync Data.", "error"); openSetup(); return; }
             const select = document.getElementById('login-name'); select.innerHTML = '';
-            state.players.forEach(p => {
-                const opt = document.createElement('option'); opt.value = p.name; opt.innerText = getPlayerDisplayName(p); select.appendChild(opt);
+            state.players.forEach(p => { 
+                select.innerHTML += `<option value="${p.name}">${p.character ? `${p.name} (${p.character})` : p.name}</option>`; 
             });
-            document.getElementById('login-pin').value = ''; loginModal.style.display = 'flex';
+            document.getElementById('login-pin').value = ''; openModal('login-modal');
         }
-        function closeLoginModal() { loginModal.style.display = 'none'; }
         function submitLogin(asDm) {
-            const name = document.getElementById('login-name').value;
-            const pin = document.getElementById('login-pin').value;
+            const name = document.getElementById('login-name').value; const pin = document.getElementById('login-pin').value;
             const user = state.players.find(p => p.name === name && p.pin === pin);
-            if (user) { 
-                state.currentUser = user; 
-                state.isDmMode = asDm; 
-                sessionStorage.setItem('lootTrackerUser', JSON.stringify(user));
-                sessionStorage.setItem('lootTrackerDmMode', asDm);
-                closeLoginModal(); 
-                renderAll(); 
-            } else { alert("Incorrect PIN."); }
+            if (user) { state.currentUser = user; state.isDmMode = asDm; closeModal('login-modal'); renderAll(); showToast(`Welcome, ${name}!`, "success");} 
+            else showToast("Incorrect PIN.", "error");
         }
-        function handleLogout() {
-            state.currentUser = null; 
-            state.isDmMode = false; 
-            sessionStorage.removeItem('lootTrackerUser');
-            sessionStorage.removeItem('lootTrackerDmMode');
-            state.items.forEach(item => item.isEditing = false); 
+        function handleLogout() { state.currentUser = null; state.isDmMode = false; state.items.forEach(i => i.isEditing = false); renderAll(); showToast("Logged out.", "success");}
+        function switchRole() {
+            if (state.isDmMode) { 
+                state.isDmMode = false; state.items.forEach(i => i.isEditing = false); renderAll(); 
+            } else {
+                document.getElementById('unlock-dm-pin').value = '';
+                openModal('unlock-dm-modal');
+            }
+        }
+        function submitUnlockDm() {
+            const pin = document.getElementById('unlock-dm-pin').value;
+            if (pin === state.currentUser.pin) { state.isDmMode = true; closeModal('unlock-dm-modal'); renderAll(); showToast("DM Tools Unlocked", "success");}
+            else showToast("Incorrect PIN", "error");
+        }
+
+        // --- View Toggles ---
+        function toggleViewMode(mode) {
+            state.viewMode = mode;
+            document.querySelectorAll('.view-toggles button').forEach(b => b.classList.remove('active'));
+            document.getElementById(`view-${mode}-btn`).classList.add('active');
+            
+            const main = document.getElementById('loot-grid');
+            main.className = mode === 'table' ? 'table-view' : 'grid-view';
+            
+            if (mode === 'print') {
+                document.body.classList.add('print-mode-active');
+                document.getElementById('print-execute-btn').style.display = 'block';
+            } else {
+                document.body.classList.remove('print-mode-active');
+                document.getElementById('print-execute-btn').style.display = 'none';
+            }
             renderAll();
         }
-        function toggleViewMode() {
-            if (state.isDmMode) { 
-                state.isDmMode = false; 
-                sessionStorage.setItem('lootTrackerDmMode', false);
-                state.items.forEach(i => i.isEditing = false); 
-                renderAll(); 
-            } else {
-                const pin = prompt(`Enter PIN for ${state.currentUser.name} to unlock DM View:`);
-                if (pin === state.currentUser.pin) { 
-                    state.isDmMode = true; 
-                    sessionStorage.setItem('lootTrackerDmMode', true);
-                    renderAll(); 
-                } else if (pin !== null) { alert("Incorrect PIN."); }
-            }
-        }
 
-        // --- Search Logic ---
-        function handleSearch(query) { state.searchQuery = query.toLowerCase(); renderAll(); }
-
-        // --- Player Inventory Actions ---
-        function togglePlayerItemAction(id, field) {
-            const item = state.items.find(i => String(i.id) === String(id));
-            if (item) { item[field] = !item[field]; renderAll(); triggerAutoSave(); }
-        }
-        function takeItem(id) { updateItem(id, 'owner', state.currentUser.name); renderAll(); triggerAutoSave(); }
-        function returnItem(id) { 
-            const item = state.items.find(i => String(i.id) === String(id));
-            if (item) { item.owner = 'Party Stash'; item.isEquipped = false; renderAll(); triggerAutoSave(); }
-        }
-
-        function incrementQuantity(id, phantomDataStr) {
-            if (String(id).startsWith('phantom-')) {
-                const data = JSON.parse(decodeURIComponent(phantomDataStr));
-                state.items.unshift({
-                    id: Date.now(), isIdentified: true, isStandard: true, apparentName: data.apparentName, trueName: data.trueName, quantity: 1, isConsumable: true,
-                    imageUrl: "", weight: data.weight, description: data.description, requiresAttunement: false, isAttuned: false, isEquipped: false,
-                    owner: state.currentUser.name, secretKeeper: "Shared", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false 
-                });
-            } else {
-                const item = state.items.find(i => String(i.id) === String(id));
-                if (item) item.quantity = (item.quantity !== undefined ? item.quantity : 1) + 1;
-            }
-            renderAll(); triggerAutoSave();
-        }
-
-        function decrementQuantity(id) {
-            if (String(id).startsWith('phantom-')) return;
-            const item = state.items.find(i => String(i.id) === String(id));
-            if (item && item.quantity > 0) { item.quantity--; renderAll(); triggerAutoSave(); }
-        }
-
-        function returnOneItem(id) { 
-            const item = state.items.find(i => String(i.id) === String(id));
-            if (item && item.quantity > 0) { 
-                item.quantity--; 
-                let stashItem = JSON.parse(JSON.stringify(item));
-                stashItem.id = Date.now() + Math.floor(Math.random() * 1000);
-                stashItem.owner = 'Party Stash';
-                stashItem.quantity = 1;
-                stashItem.isEquipped = false;
-                state.items.unshift(stashItem);
-                renderAll(); triggerAutoSave(); 
-            }
-        }
-
-        // --- Multi-DM Cryptography ---
-        function getDisplayText(text, keeperName, isPublic = false) {
-            if (!text) return ""; 
-            if (isPublic && !text.startsWith("ENC::")) return text;
-            const isShared = (keeperName === "Shared");
-            const canViewSecret = state.isDmMode && state.currentUser && (isShared || state.currentUser.name === keeperName);
-            if (!text.startsWith("ENC::")) {
-                if (!canViewSecret && !isPublic) return `🔒 [Secret kept by ${keeperName}]`;
-                return text;
-            }
-            if (!canViewSecret && !isPublic) return `🔒 [Secret kept by ${keeperName}]`;
-            try {
-                const key = isShared ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin;
-                return CryptoJS.AES.decrypt(text.replace("ENC::", ""), key).toString(CryptoJS.enc.Utf8) || `🔒 [Decryption Failed]`;
-            } catch(e) { return `🔒 [Encryption Error]`; }
-        }
-
-        function getEditableText(text, keeperName, isPublic = false) {
-            if (!text) return "";
-            if (isPublic && !text.startsWith("ENC::")) return text;
-            const isShared = (keeperName === "Shared");
-            const canViewSecret = state.currentUser && (isShared || state.currentUser.name === keeperName);
-            if (!text.startsWith("ENC::")) {
-                if (!canViewSecret && !isPublic) return `🔒 Encrypted by ${keeperName}`;
-                return text;
-            }
-            if (!canViewSecret && !isPublic) return `🔒 Encrypted by ${keeperName}`;
-            try {
-                const key = isShared ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin;
-                return CryptoJS.AES.decrypt(text.replace("ENC::", ""), key).toString(CryptoJS.enc.Utf8);
-            } catch(e) { return ""; }
-        }
-
-        function makeShared(id) {
-            const item = state.items.find(i => String(i.id) === String(id));
-            if (item && item.secretKeeper === state.currentUser.name) {
-                item.trueName = getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName;
-                item.description = getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description;
-                item.curseDetectDC = getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC;
-                item.curseDetails = getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails;
-                item.secretKeeper = "Shared"; renderAll(); triggerAutoSave();
-            }
-        }
-
-        // --- Autosave & Cloud Syncing ---
+        // --- Cloud & AutoSave ---
         let autoSaveTimeout;
         function triggerAutoSave() {
-            consolidateItems(); 
             clearTimeout(autoSaveTimeout);
-            const btn = document.getElementById('btn-load');
-            if (btn) btn.innerText = "⏳ Autosaving...";
-            autoSaveTimeout = setTimeout(() => { saveToCloud(true, true); }, 1500);
+            const btn = document.getElementById('btn-load'); if (btn) btn.innerText = "⏳ Autosaving...";
+            autoSaveTimeout = setTimeout(() => saveToCloud(true, true), 1500);
         }
 
         async function saveToCloud(silent = false, skipRender = false) {
-            if (!state.scriptUrl) { return; } 
+            if (!state.scriptUrl) return; 
             clearTimeout(autoSaveTimeout); 
-            if (!silent) {
-                const btn = document.getElementById('btn-load');
-                if (btn) { btn.innerText = "⏳ Saving..."; btn.disabled = true; }
-            }
+            const btn = document.getElementById('btn-load');
+            if (!silent && btn) { btn.innerText = "⏳ Saving..."; btn.disabled = true; }
 
             const secureData = state.items.map(item => {
                 let outTrueName = item.trueName || ""; let outDesc = item.description || "";
                 let outCurseDC = item.curseDetectDC || ""; let outCurseDetails = item.curseDetails || "";
-                
-                const isKeeper = state.isDmMode && state.currentUser && (item.secretKeeper === "Shared" || state.currentUser.name === item.secretKeeper);
+                const isKeeper = state.currentUser && (item.secretKeeper === state.currentUser.name || (state.isDmMode && item.secretKeeper === "Shared"));
                 const encKey = item.secretKeeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : (state.currentUser ? CAMPAIGN_KEY + "_" + state.currentUser.pin : "");
 
                 if (!item.isIdentified && isKeeper) {
@@ -909,25 +901,22 @@ function doPost(e) {
                 }
 
                 return {
-                    id: item.id, apparentName: item.apparentName || "", trueName: outTrueName, imageUrl: item.imageUrl || "",
-                    owner: item.owner || "Party Stash", weight: item.weight || "-", quantity: item.quantity !== undefined ? item.quantity : 1,
-                    isConsumable: item.isConsumable ? true : false, isStandard: item.isStandard ? true : false,
-                    isEquipped: item.isEquipped ? true : false, requiresAttunement: item.requiresAttunement ? true : false, 
-                    isAttuned: item.isAttuned ? true : false, isIdentified: item.isIdentified ? true : false, 
-                    description: outDesc, isCurseRevealed: item.isCurseRevealed ? true : false,
-                    curseDetectDC: outCurseDC, curseDetails: outCurseDetails, secretKeeper: item.secretKeeper || ""
+                    id: item.id, cardType: item.cardType || "Item", apparentName: item.apparentName || "", trueName: outTrueName, imageUrl: item.imageUrl || "",
+                    owner: item.owner || "Party Stash", storageLocation: item.storageLocation || "Backpack", weight: item.weight || "-", 
+                    quantity: item.quantity || 0, maxQuantity: item.maxQuantity || "", hasQuantity: item.hasQuantity ? true : false, 
+                    isConsumable: item.isConsumable ? true : false, isEquipped: item.isEquipped ? true : false, requiresAttunement: item.requiresAttunement ? true : false, 
+                    isAttuned: item.isAttuned ? true : false, isIdentified: item.isIdentified ? true : false, description: outDesc, 
+                    isCurseRevealed: item.isCurseRevealed ? true : false, curseDetectDC: outCurseDC, curseDetails: outCurseDetails, 
+                    secretKeeper: item.secretKeeper || "", cardSize: item.cardSize || "Standard", rarity: item.rarity || "Mundane",
+                    wealthData: item.wealthData || {}, isCollapsed: item.isCollapsed ? true : false
                 };
             });
 
             try {
-                await fetch(state.scriptUrl, {
-                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ action: 'saveData', data: secureData, standardData: state.standardCatalog })
-                });
+                await fetch(state.scriptUrl, { method: 'POST', body: JSON.stringify({ action: 'saveData', data: secureData }) });
                 if (!silent) state.items.forEach(i => i.isEditing = false);
-            } catch(e) { console.error("Failed to save.", e); }
+            } catch(e) { console.error("Save failed.", e); }
             
-            const btn = document.getElementById('btn-load');
             if (btn) { btn.innerText = "📥 Sync Data"; btn.disabled = false; }
             if (!skipRender) renderAll();
         }
@@ -941,31 +930,32 @@ function doPost(e) {
                 const response = await fetch(state.scriptUrl);
                 const data = await response.json();
                 
-                if (data.players) state.players = data.players;
-                
-                if (data.standardItems && data.standardItems.length > 0) {
-                    state.standardCatalog = data.standardItems;
-                } else {
-                    state.standardCatalog = DEFAULT_CATALOG;
+                if (data.backendVersion !== REQUIRED_BACKEND_VERSION) {
+                    if (state.liveSyncInterval) { clearInterval(state.liveSyncInterval); state.liveSyncInterval = null; }
+                    openModal('db-upgrade-modal');
+                    if (btn) { btn.innerText = "⚠️ Upgrade Required"; btn.disabled = false; }
+                    return; 
                 }
 
+                if (data.players) state.players = data.players;
                 if (data.items && data.items.length > 0) {
                     const newDataHash = JSON.stringify(data.items);
-                    if (silent && newDataHash === state.lastCloudHash) return;
+                    if (silent && newDataHash === state.lastCloudHash) return; 
                     state.lastCloudHash = newDataHash;
 
                     state.items = data.items.map(item => ({
                         ...item,
-                        quantity: item.quantity !== undefined ? parseInt(item.quantity) : 1,
+                        quantity: parseInt(item.quantity) || 0,
+                        hasQuantity: String(item.hasQuantity).toLowerCase() === 'true',
                         isConsumable: String(item.isConsumable).toLowerCase() === 'true',
-                        isStandard: String(item.isStandard).toLowerCase() === 'true',
                         isEquipped: String(item.isEquipped).toLowerCase() === 'true',
+                        requiresAttunement: String(item.requiresAttunement).toLowerCase() === 'true',
                         isAttuned: String(item.isAttuned).toLowerCase() === 'true',
                         isIdentified: String(item.isIdentified).toLowerCase() === 'true',
-                        requiresAttunement: String(item.requiresAttunement).toLowerCase() === 'true',
-                        isCurseRevealed: String(item.isCurseRevealed).toLowerCase() === 'true'
+                        isCurseRevealed: String(item.isCurseRevealed).toLowerCase() === 'true',
+                        isCollapsed: String(item.isCollapsed).toLowerCase() === 'true',
+                        wealthData: parseWealth(item.wealthData)
                     }));
-                    consolidateItems(); 
                 } else { state.items = []; }
             } catch(e) { console.error("Load error:", e); }
             
@@ -973,380 +963,598 @@ function doPost(e) {
             renderAll();
         }
 
-        // --- Image Uploading ---
-        async function handleImageUpload(itemId, fileInput) {
-            if (!state.scriptUrl) return alert("Cloud URL required.");
-            const file = fileInput.files[0]; if (!file) return;
-
-            const labelBtn = fileInput.parentElement;
-            labelBtn.innerHTML = "⏳ Uploading..."; labelBtn.style.background = "#e67e22";
-
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const base64Data = e.target.result.split(',')[1];
-                const payload = { action: 'uploadImage', fileName: file.name, mimeType: file.type, base64: base64Data };
-                try {
-                    const response = await fetch(state.scriptUrl, {
-                        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify(payload)
-                    });
-                    const res = await response.json();
-                    if (res.url) {
-                        updateItem(itemId, 'imageUrl', res.url);
-                        labelBtn.style.background = "#2ecc71"; labelBtn.innerHTML = "✅ Done";
-                        setTimeout(() => renderAll(), 1000);
-                    }
-                } catch(err) { labelBtn.style.background = "#e74c3c"; labelBtn.innerHTML = "❌ Failed"; }
-            };
-            reader.readAsDataURL(file);
+        function toggleLiveSync() {
+            if (!state.scriptUrl) return showToast("Please complete Cloud Setup first!", "error");
+            const btn = document.getElementById('live-sync-btn');
+            if (state.liveSyncInterval) {
+                clearInterval(state.liveSyncInterval); state.liveSyncInterval = null;
+                if (btn) { btn.innerHTML = '🔄 Live Sync: OFF'; btn.style.background = '#555'; }
+            } else {
+                state.liveSyncInterval = setInterval(() => { 
+                    const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+                    if (!state.items.some(i => i.isEditing) && !isTyping) loadFromCloud(true); 
+                }, 15000);
+                if (btn) { btn.innerHTML = '🔄 Live Sync: ON'; btn.style.background = '#27ae60'; }
+                loadFromCloud(true); 
+            }
         }
 
-        // --- Item Management ---
-        function addNewItem() {
-            if (!state.isDmMode) return;
+        // --- Cryptography ---
+        function getDisplayText(text, keeper, isPub = false) {
+            if (text === null || text === undefined || text === "") return ""; 
+            let str = String(text); 
+            if (isPub && !str.startsWith("ENC::")) return str;
+            const canView = state.currentUser && (state.currentUser.name === keeper || (state.isDmMode && keeper === "Shared"));
+            if (!str.startsWith("ENC::")) return (!canView && !isPub) ? `🔒 [Secret]` : str;
+            if (!canView && !isPub) return `🔒 [Secret]`;
+            try { return CryptoJS.AES.decrypt(str.replace("ENC::", ""), keeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin).toString(CryptoJS.enc.Utf8) || `🔒 [Error]`; } catch(e) { return `🔒 [Error]`; }
+        }
+        function getEditableText(text, keeper, isPub = false) {
+            if (text === null || text === undefined || text === "") return ""; 
+            let str = String(text); 
+            if (isPub && !str.startsWith("ENC::")) return str;
+            const canView = state.currentUser && (state.currentUser.name === keeper || (state.isDmMode && keeper === "Shared"));
+            if (!str.startsWith("ENC::")) return (!canView && !isPub) ? `🔒 Encrypted` : str;
+            if (!canView && !isPub) return `🔒 Encrypted`;
+            try { return CryptoJS.AES.decrypt(str.replace("ENC::", ""), keeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin).toString(CryptoJS.enc.Utf8); } catch(e) { return ""; }
+        }
+
+        // --- Card Actions & Editing ---
+        function addNewCard(type) {
+            if (type === 'Quest' && !state.isDmMode) return;
+            const d = document.getElementById('add-menu-dropdown'); if(d) d.classList.remove('show');
+            
+            let newItem = {
+                id: Date.now(), cardType: type, apparentName: `New ${type}`, trueName: "", quantity: 1, maxQuantity: "",
+                hasQuantity: false, isConsumable: false, imageUrl: "", weight: "-", description: "", requiresAttunement: false, 
+                isAttuned: false, storageLocation: "Backpack", isEquipped: false, owner: state.currentUser ? state.currentUser.name : "Party Stash", 
+                secretKeeper: state.currentUser ? state.currentUser.name : "Shared", cardSize: "Standard", rarity: "Mundane",
+                isIdentified: type !== 'Item', isCurseRevealed: false, curseDetectDC: "10", curseDetails: "", isEditing: true,
+                wealthData: {pp:0, gp:0, ep:0, sp:0, cp:0, gems:""}, isCollapsed: false
+            };
+
+            if (type === 'Treasure') { newItem.apparentName = "Pouch of Wealth"; }
+            if (type === 'Note') { newItem.apparentName = "Mysterious Note"; newItem.cardSize = "Half Page"; }
+            if (type === 'Quest') { newItem.apparentName = "New Quest"; newItem.cardSize = "Full Page"; newItem.owner = "Party Stash"; }
+            if (type === 'Transcription') { 
+                newItem.apparentName = "Magical Ink & Paper"; newItem.hasQuantity = true; newItem.isConsumable = true; 
+                newItem.description = "Contains supplies to transcribe spells. 1 Charge = 1 Spell Level (50gp value)."; 
+            }
+
+            newItem._backup = JSON.stringify(newItem); 
+            state.items.unshift(newItem);
+            renderAll(); triggerAutoSave();
+        }
+
+        function quickAddPotion(type) {
+            let desc = "Regain HP when consumed. ";
+            let trueName = type === 'Healing' ? 'Potion of Healing' : `Potion of ${type} Healing`;
+            let rarity = "Common";
+            if(type === 'Healing') { desc += "2d4 + 2 HP."; }
+            if(type === 'Greater') { desc += "4d4 + 4 HP."; rarity = "Uncommon"; }
+            if(type === 'Superior') { desc += "8d4 + 8 HP."; rarity = "Rare"; }
+            if(type === 'Supreme') { desc += "10d4 + 20 HP."; rarity = "Epic"; }
+
             state.items.unshift({
-                id: Date.now(), isIdentified: false, isStandard: false, apparentName: "New Mysterious Item", trueName: "", quantity: 1, isConsumable: false,
-                imageUrl: "", weight: "-", description: "", requiresAttunement: false, isAttuned: false, isEquipped: false,
-                owner: "Party Stash", secretKeeper: state.currentUser.name, isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: true 
+                id: Date.now(), cardType: "Item", isIdentified: true, apparentName: "Glass Potion Bottle", trueName: trueName, 
+                hasQuantity: true, quantity: 1, maxQuantity: "", isConsumable: true, storageLocation: "Pouch", weight: "0.5 lbs", description: desc, 
+                cardSize: "Mini", rarity: rarity, owner: "Party Stash", secretKeeper: state.currentUser.name, isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false 
             });
             renderAll(); triggerAutoSave();
+        }
+
+        function updateItem(id, field, value, skipRender=false) {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item) { item[field] = value; triggerAutoSave(); if(!skipRender) renderAll(); }
+        }
+        function updateWealth(id, coin, value, skipRender=false) {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item) { item.wealthData[coin] = value; triggerAutoSave(); if(!skipRender) renderAll(); }
+        }
+        function updateRarity(id, value) {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item) {
+                item.rarity = value;
+                if (!item.curseDetectDC) item.curseDetectDC = RARITY_DCS[value] || "";
+                triggerAutoSave(); renderAll();
+            }
+        }
+        
+        function toggleEdit(id) { 
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (!item) return;
+            if (!item.isEditing) {
+                item._backup = JSON.stringify(item);
+                item.isEditing = true;
+            } else {
+                delete item._backup;
+                item.isEditing = false;
+                triggerAutoSave();
+            }
+            renderAll(); 
+        }
+
+        function discardEdit(id) {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item && item._backup) {
+                const backup = JSON.parse(item._backup);
+                Object.assign(item, backup);
+                item.isEditing = false;
+                delete item._backup;
+                renderAll();
+                showToast("Changes discarded.", "success");
+            }
+        }
+
+        function toggleProp(id, prop) { updateItem(id, prop, !state.items.find(i => String(i.id) === String(id))?.[prop]); }
+        function changeQty(id, amt) {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item) updateItem(id, 'quantity', Math.max(0, (item.quantity || 0) + amt));
         }
 
         function removeItem(id) {
             const item = state.items.find(i => String(i.id) === String(id));
             if (!item) return;
-            const isOwnEmptyConsumable = !state.isDmMode && item.owner === state.currentUser.name && item.isConsumable && item.quantity === 0;
-            const isKeeper = item.secretKeeper === "Shared" || (state.currentUser && item.secretKeeper === state.currentUser.name);
-
-            if (!state.isDmMode && !isOwnEmptyConsumable) return alert("Players cannot delete items from the database.");
-            if (state.isDmMode && !isKeeper && state.currentUser.name !== 'Party Stash') return alert(`Only ${item.secretKeeper} can delete this item.`);
-            
-            if(confirm("Delete this item?")) {
-                state.items = state.items.filter(item => String(item.id) !== String(id));
-                renderAll(); triggerAutoSave();
-            }
+            const canDelete = state.isDmMode || (item.owner === state.currentUser?.name && item.isConsumable && item.quantity === 0);
+            if (!canDelete) { showToast("Players can only delete empty consumables.", "error"); return; }
+            state.items = state.items.filter(i => String(i.id) !== String(id)); 
+            renderAll(); triggerAutoSave();
+            showToast("Card deleted.", "success");
         }
 
-        function toggleEdit(id) {
+        function makeShared(id) {
             const item = state.items.find(i => String(i.id) === String(id));
-            if (item) { item.isEditing = !item.isEditing; renderAll(); }
-        }
-
-        function toggleIdentified(id) {
-            const item = state.items.find(i => String(i.id) === String(id));
-            if (item && (item.secretKeeper === "Shared" || item.secretKeeper === state.currentUser.name)) { 
-                item.isIdentified = !item.isIdentified; 
-                consolidateItems(); 
-                renderAll(); triggerAutoSave();
+            if (item && item.secretKeeper === state.currentUser?.name) {
+                item.trueName = getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName;
+                item.description = getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description;
+                item.curseDetectDC = getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC;
+                item.curseDetails = getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails;
+                item.secretKeeper = "Shared"; renderAll(); triggerAutoSave();
             }
         }
 
-        function toggleCurse(id) {
-            const item = state.items.find(i => String(i.id) === String(id));
-            if (item && (item.secretKeeper === "Shared" || item.secretKeeper === state.currentUser.name)) { 
-                item.isCurseRevealed = !item.isCurseRevealed; renderAll(); triggerAutoSave();
+        // --- Encumbrance & Wealth Calculators ---
+        function calculateEncumbrance() {
+            try {
+                let html = `<table class="encumbrance-table"><tr><th>Character</th><th>Combat Gear</th><th>Backpack</th><th>Coin Weight</th><th>TOTAL</th></tr>`;
+                ["Party Stash", ...state.players.map(p => p.name)].forEach(entity => {
+                    let items = state.items.filter(i => i.owner === entity);
+                    let combat = 0, pack = 0, coins = 0;
+                    items.forEach(i => {
+                        let w = parseWeight(i.weight, i.hasQuantity ? i.quantity : 1);
+                        if (i.cardType === 'Treasure') {
+                            let wd = parseWealth(i.wealthData);
+                            let totalCoins = (parseInt(wd.pp)||0) + (parseInt(wd.gp)||0) + (parseInt(wd.ep)||0) + (parseInt(wd.sp)||0) + (parseInt(wd.cp)||0);
+                            coins += totalCoins / 50; 
+                        } else if (["Equipped/Worn", "Belt", "Bandolier"].includes(i.storageLocation)) { combat += w; } 
+                        else { pack += w; }
+                    });
+                    let total = combat + pack + coins;
+                    if (total > 0) {
+                        const displayName = entity === "Party Stash" ? entity : (getPlayerDisplayName(state.players.find(p=>p.name===entity)) || entity);
+                        html += `<tr><td><strong>${displayName}</strong></td>
+                                 <td>${combat.toFixed(1)} lbs</td><td>${pack.toFixed(1)} lbs</td><td>${coins.toFixed(1)} lbs</td>
+                                 <td style="color:#f1c40f; font-weight:bold;">${total.toFixed(1)} lbs</td></tr>`;
+                    }
+                });
+                document.getElementById('encumbrance-content').innerHTML = html + `</table>`; 
+                openModal('encumbrance-modal');
+            } catch(e) {
+                console.error("Encumbrance error:", e);
+                showToast("Error calculating encumbrance.", "error");
             }
         }
 
-        function updateItem(id, field, value) {
-            const item = state.items.find(i => String(i.id) === String(id));
-            if (item) { item[field] = value; triggerAutoSave(); } 
-        }
-
-        // --- Rendering Logic ---
-        function renderAll() {
-            consolidateItems(); 
-
-            const addBtn = document.getElementById('add-btn-header');
-            const srdBtn = document.getElementById('srd-btn-header');
-            const loginBtn = document.getElementById('login-btn-header');
-            const logoutBtn = document.getElementById('logout-btn-header');
-            const userInfo = document.getElementById('user-info-display');
-            const userNameDisplay = document.getElementById('display-user-name');
-            const dmToolbar = document.getElementById('dm-toolbar');
-            const titleEl = document.getElementById('main-page-title');
-            const setupBtn = document.getElementById('setup-btn-header');
-            const switchModeBtn = document.getElementById('switch-mode-btn');
-
-            let ghLinks = "";
-            if (BUILD_INFO.repo !== "LOCAL") {
-                ghLinks = `
-                    <div class="github-links" style="display: inline-flex; gap: 5px; font-size: 11px; margin-left: 15px;">
-                        <a href="https://github.com/${BUILD_INFO.repo}/releases/tag/${BUILD_INFO.version}" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-weight: normal;">
-                            🐙 ${BUILD_INFO.version}
-                        </a>
-                    </div>`;
-            }
-
-            if (state.scriptUrl) {
-                titleEl.innerHTML = `Item Tracker ${ghLinks}`;
-                setupBtn.innerHTML = `⚙️✅ Setup`; setupBtn.classList.add('configured');
-            } else {
-                titleEl.innerHTML = `Item Tracker <span style="font-size: 12px; color: #e67e22;">[Cartoon Demo Data]</span> ${ghLinks}`;
-                setupBtn.innerHTML = `⚙️ Setup`; setupBtn.classList.remove('configured');
-            }
-
-            if (state.currentUser) {
-                loginBtn.style.display = 'none'; logoutBtn.style.display = 'block'; 
-                userInfo.style.display = 'block'; switchModeBtn.style.display = 'block';
-                const role = state.isDmMode ? "DM" : "Player";
-                userNameDisplay.innerText = `${getPlayerDisplayName(state.currentUser)} (${role})`;
+        function calculatePartyWealth() {
+            try {
+                let sums = { pp:0, gp:0, ep:0, sp:0, cp:0 };
+                let gemsList = [];
+                state.items.filter(i => i.cardType === 'Treasure').forEach(i => {
+                    let wd = parseWealth(i.wealthData);
+                    sums.pp += parseInt(wd.pp) || 0; sums.gp += parseInt(wd.gp) || 0;
+                    sums.ep += parseInt(wd.ep) || 0; sums.sp += parseInt(wd.sp) || 0;
+                    sums.cp += parseInt(wd.cp) || 0;
+                    if (wd.gems && wd.gems.trim() !== "") gemsList.push(`<em>(${getPlayerDisplayName(state.players.find(p=>p.name===i.owner)) || i.owner}):</em> ${wd.gems}`);
+                });
+                let totalGp = (sums.pp * 10) + sums.gp + (sums.ep * 0.5) + (sums.sp * 0.1) + (sums.cp * 0.01);
                 
-                if (state.isDmMode) { 
-                    addBtn.style.display = 'block'; srdBtn.style.display = 'block'; dmToolbar.style.display = 'flex'; 
-                    switchModeBtn.innerHTML = '👤 Switch to Player View'; switchModeBtn.style.background = '#e67e22';
-                } else { 
-                    addBtn.style.display = 'none'; srdBtn.style.display = 'none'; dmToolbar.style.display = 'none'; 
-                    switchModeBtn.innerHTML = '👁️ Switch to DM View'; switchModeBtn.style.background = '#9b59b6';
-                }
+                document.getElementById('wealth-content').innerHTML = `
+                    <div style="display:flex; justify-content:space-between; border-bottom:1px solid #555; padding-bottom:10px; margin-bottom:10px;">
+                        <div><strong>Platinum:</strong> ${sums.pp}</div> <div><strong>Gold:</strong> ${sums.gp}</div> <div><strong>Electrum:</strong> ${sums.ep}</div>
+                        <div><strong>Silver:</strong> ${sums.sp}</div> <div><strong>Copper:</strong> ${sums.cp}</div>
+                    </div>
+                    <div style="font-size:24px; color:#2ecc71; text-align:center; font-weight:bold; margin: 20px 0;">Total Value: ${totalGp.toFixed(2)} GP</div>
+                    <div style="font-size:12px; color:#ccc;"><strong>Gems & Art Objects:</strong><br>${gemsList.length > 0 ? gemsList.join('<br>') : 'None recorded.'}</div>
+                `;
+                openModal('wealth-modal');
+            } catch(e) {
+                console.error("Wealth error:", e);
+                showToast("Error calculating wealth.", "error");
+            }
+        }
+
+        // --- Render Engines ---
+        function renderAll() {
+            document.getElementById('setup-btn-header').innerHTML = state.scriptUrl ? `⚙️✅ Setup` : `⚙️ Setup`;
+            document.getElementById('setup-btn-header').className = state.scriptUrl ? 'setup-btn configured' : 'setup-btn';
+            
+            if (state.currentUser) {
+                document.getElementById('login-btn-header').style.display = 'none';
+                document.getElementById('logout-btn-header').style.display = 'block';
+                document.getElementById('user-info-display').style.display = 'block';
+                document.getElementById('display-user-name').innerText = `${getPlayerDisplayName(state.currentUser)} (${state.isDmMode ? 'DM' : 'Player'})`;
+                
+                document.getElementById('add-dropdown-container').style.display = 'inline-block';
+                document.getElementById('dropdown-quest').style.display = state.isDmMode ? 'block' : 'none';
+                document.getElementById('dropdown-srd').style.display = state.isDmMode ? 'block' : 'none';
+                document.getElementById('switch-mode-btn').style.display = 'block';
+                document.getElementById('switch-mode-btn').innerHTML = state.isDmMode ? '👤 Player View' : '👁️ DM View';
+                document.getElementById('switch-mode-btn').style.background = state.isDmMode ? '#e67e22' : '#9b59b6';
+                document.getElementById('dm-toolbar').style.display = state.isDmMode ? 'flex' : 'none';
             } else {
-                loginBtn.style.display = 'block'; logoutBtn.style.display = 'none'; userInfo.style.display = 'none';
-                addBtn.style.display = 'none'; srdBtn.style.display = 'none'; dmToolbar.style.display = 'none'; switchModeBtn.style.display = 'none';
+                document.getElementById('login-btn-header').style.display = 'block';
+                ['logout-btn-header', 'user-info-display', 'add-dropdown-container', 'switch-mode-btn', 'dm-toolbar'].forEach(id => document.getElementById(id).style.display = 'none');
             }
 
-            gridEl.innerHTML = '';
-            let displayItems = [...state.items];
-
-            if (state.currentUser && !state.isDmMode) {
-                PHANTOM_POTIONS.forEach(p => {
-                    const exists = displayItems.find(i => i.owner === state.currentUser.name && i.trueName === p.trueName);
-                    if (!exists) {
-                        displayItems.push({
-                            id: 'phantom-' + p.trueName.replace(/\s+/g, ''), isIdentified: true, isStandard: true, apparentName: p.apparentName, trueName: p.trueName,
-                            description: p.description, weight: p.weight, quantity: 0, isConsumable: true, isEquipped: false, requiresAttunement: false,
-                            isAttuned: false, owner: state.currentUser.name, secretKeeper: "Shared", isCurseRevealed: false, curseDetectDC: "", curseDetails: "",
-                            imageUrl: "", isPhantom: true, phantomDataStr: encodeURIComponent(JSON.stringify(p))
+            // Ensure every player has a Treasure card (Runs for Demo & Cloud)
+            if (state.players.length > 0) {
+                state.players.forEach(p => {
+                    if (p.character === 'DM' || p.name === 'Party Stash') return;
+                    if (!state.items.some(i => i.cardType === 'Treasure' && i.owner === p.name)) {
+                        let cName = p.character ? p.character : p.name;
+                        state.items.push({
+                            id: Date.now() + Math.random(), cardType: "Treasure", isIdentified: true, apparentName: `${cName} Wealth`, trueName: `${cName} Wealth`,
+                            owner: p.name, storageLocation: "Pouch", secretKeeper: "Shared", cardSize: "Standard", rarity: "Mundane",
+                            wealthData: {pp:0, gp:0, ep:0, sp:0, cp:0, gems:""}, isEditing: false 
                         });
                     }
                 });
             }
-            
-            if (state.searchQuery.trim() !== "") {
-                displayItems = displayItems.filter(item => {
-                    let searchableText = (item.apparentName || "").toLowerCase();
-                    if (item.isIdentified || state.isDmMode) {
-                        searchableText += " " + (getDisplayText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName || "").toLowerCase();
-                        searchableText += " " + (getDisplayText(item.description, item.secretKeeper, item.isIdentified) || item.description || "").toLowerCase();
-                    }
-                    if (item.isCurseRevealed || state.isDmMode) {
-                        searchableText += " " + (getDisplayText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails || "").toLowerCase();
-                    }
-                    searchableText += " " + (item.owner || "Unclaimed").toLowerCase();
-                    return searchableText.includes(state.searchQuery);
-                });
-            }
 
-            // Apply Hierarchical + Potion Ordering Sort
+            // Filter & Sort
+            let displayItems = state.items.filter(item => {
+                if (item.owner === "DM Stash" && !state.isDmMode) return false; 
+                if (state.searchQuery.trim() === "") return true;
+                let q = state.searchQuery.toLowerCase();
+                let text = (item.apparentName || "") + " " + (item.owner || "");
+                if (item.isIdentified || state.isDmMode) text += " " + (getDisplayText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName) + " " + (getDisplayText(item.description, item.secretKeeper, item.isIdentified) || item.description);
+                if (item.cardType === 'Treasure' && item.wealthData && item.wealthData.gems) text += " " + item.wealthData.gems;
+                return text.toLowerCase().includes(q);
+            });
+
             displayItems.sort((a, b) => {
-                const getRank = (owner) => {
-                    if (state.currentUser && owner === state.currentUser.name) return 0;
-                    if (owner === "Party Stash") return 1;
-                    return 2;
-                };
-
-                const rankA = getRank(a.owner);
-                const rankB = getRank(b.owner);
-
+                const typeRank = { 'Quest': 1, 'Item': 2, 'Transcription': 2, 'Treasure': 3, 'Note': 4 };
+                const rankA = typeRank[a.cardType || 'Item'] || 5;
+                const rankB = typeRank[b.cardType || 'Item'] || 5;
                 if (rankA !== rankB) return rankA - rankB;
+
+                const getOwnerRank = (o) => (state.currentUser && o === state.currentUser.name) ? 0 : (o === "Party Stash" ? 1 : 2);
+                if (getOwnerRank(a.owner) !== getOwnerRank(b.owner)) return getOwnerRank(a.owner) - getOwnerRank(b.owner);
+                
                 if (a.owner !== b.owner) return a.owner.localeCompare(b.owner);
-
-                const potionOrder = {
-                    "Potion of Healing": 1,
-                    "Potion of Greater Healing": 2,
-                    "Potion of Superior Healing": 3,
-                    "Potion of Supreme Healing": 4
-                };
-                
-                const orderA = potionOrder[a.trueName] || 99;
-                const orderB = potionOrder[b.trueName] || 99;
-                
-                if (orderA !== orderB) return orderA - orderB;
-
                 return (a.apparentName || "").localeCompare(b.apparentName || "");
             });
 
-            if (displayItems.length === 0) {
-                gridEl.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #777;">No items match your search or inventory is empty.</div>`;
-                return;
+            const grid = document.getElementById('loot-grid');
+            if (displayItems.length === 0) { grid.innerHTML = `<div style="text-align:center; padding:50px; color:#777;">No items found.</div>`; return; }
+
+            if (state.viewMode === 'table') renderTable(grid, displayItems);
+            else renderGrid(grid, displayItems);
+        }
+
+        function renderGrid(container, items) {
+            container.innerHTML = '';
+            items.forEach(item => container.appendChild(createCardElement(item)));
+        }
+
+        function renderTable(container, items) {
+            let html = `<table class="data-table"><tr><th>Type</th><th>Name</th><th>Owner</th><th>Location</th><th>Qty</th><th>Weight</th></tr>`;
+            items.forEach(item => {
+                let name = item.apparentName;
+                let isSecret = false;
+                if (item.isIdentified || state.isDmMode) {
+                    name = getDisplayText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName || item.apparentName || "Unknown Item";
+                    if (!item.isIdentified && state.isDmMode) isSecret = true;
+                }
+                
+                let qtyStr = "-";
+                if (item.cardType === 'Treasure') {
+                    let w = parseWealth(item.wealthData); 
+                    qtyStr = `${w.gp||0}g ${w.sp||0}s ${w.cp||0}c`;
+                } else if (item.hasQuantity) {
+                    qtyStr = `${item.quantity}${item.maxQuantity ? '/'+item.maxQuantity : ''}`;
+                }
+
+                const displayOwner = getPlayerDisplayName(state.players.find(p=>p.name===item.owner)) || item.owner;
+
+                html += `<tr onclick="toggleEdit('${item.id}')" class="${isSecret ? 'secret' : ''}">
+                    <td>${item.cardType || 'Item'}</td>
+                    <td>${name} ${isSecret ? '(Secret)' : ''}</td>
+                    <td>${displayOwner}</td>
+                    <td>${item.storageLocation || '-'}</td>
+                    <td>${qtyStr}</td>
+                    <td>${item.weight || '-'}</td>
+                </tr>`;
+            });
+            html += `</table><p style="font-size:11px; color:#aaa; text-align:center; margin-top:10px;">Click any row to open its Edit window in Grid View.</p>`;
+            container.innerHTML = html;
+        }
+
+        // --- Card Generation HTML ---
+        function createCardElement(item) {
+            const card = document.createElement('div');
+            const cardSizeClass = `card-${(item.cardSize || "Standard").toLowerCase().replace(' ', '-')}`;
+            
+            if (item.cardType === 'Quest' && item.isCollapsed) {
+                card.className = `loot-card card-collapsed type-quest`;
+                card.innerHTML = `
+                    <div class="card-content" onclick="toggleProp('${item.id}', 'isCollapsed')">
+                        <span style="font-weight:bold; color:#3498db;">🗺️ ${item.apparentName}</span>
+                        <span style="font-size:12px; color:#aaa;">Click to expand</span>
+                    </div>
+                    ${createEditForm(item)}
+                `;
+                return card;
             }
 
-            const rosterOptionsHtml = ["Party Stash", ...state.players.map(p => p.name)]
-                .map(ownerName => {
-                    const pData = state.players.find(p => p.name === ownerName);
-                    return { val: ownerName, label: pData ? getPlayerDisplayName(pData) : ownerName };
-                });
+            card.className = `loot-card ${cardSizeClass} ${item.isIdentified ? 'identified' : ''} ${item.isCurseRevealed ? 'cursed' : ''} type-${(item.cardType||'item').toLowerCase()}`;
+            const isKeeper = state.currentUser && (state.currentUser.name === item.secretKeeper || (state.isDmMode && item.secretKeeper === "Shared"));
+            
+            let titleToShow = item.apparentName || "Unknown Item"; 
+            let subtitleHtml = ""; let descHtml = ""; let curseHtml = "";
+            let plainDC = ""; let plainCurse = ""; let hasCurse = false;
 
-            displayItems.forEach(item => {
-                const card = document.createElement('div');
-                card.className = `loot-card ${item.isIdentified ? 'identified' : ''} ${item.isCurseRevealed ? 'cursed' : ''} ${item.isPhantom ? 'phantom' : ''}`;
+            if (item.isIdentified) {
+                titleToShow = getDisplayText(item.trueName, item.secretKeeper, true) || item.trueName || item.apparentName || "Unknown Item";
+                descHtml = (getDisplayText(item.description, item.secretKeeper, true) || item.description || "").replace(/\n/g, '<br>');
+            } else if (state.isDmMode) {
+                const pTrue = getDisplayText(item.trueName, item.secretKeeper, false) || item.trueName;
+                subtitleHtml = `<div class="true-name-reveal">True Name: ${pTrue}</div>`;
+                descHtml = (getDisplayText(item.description, item.secretKeeper, false) || item.description || "").replace(/\n/g, '<br>');
+            } else { descHtml = "<div class='hidden-text'>Properties unknown until identified.</div>"; }
 
-                const isKeeper = state.isDmMode && state.currentUser && (item.secretKeeper === "Shared" || state.currentUser.name === item.secretKeeper);
+            let titleHtml = `<h3 class="item-title" ${item.cardType === 'Quest' ? `onclick="toggleProp('${item.id}', 'isCollapsed')" style="cursor:pointer; color:#3498db;" title="Click to collapse"` : ''}>${item.cardType === 'Quest' ? '🔼 ' : ''}${titleToShow}</h3>`;
+
+            // Dynamic "Yourself" vs "Others" override for Treasure Cards
+            if (item.cardType === 'Treasure' && titleToShow && (titleToShow === "Personal Wealth" || titleToShow.includes("Wealth"))) {
+                if (state.currentUser && item.owner === state.currentUser.name) {
+                    titleHtml = `<h3 class="item-title">Personal Wealth</h3>`;
+                } else if (item.owner !== "Party Stash" && item.owner !== "DM Stash") {
+                    let ownerData = state.players.find(p => p.name === item.owner);
+                    let cName = ownerData ? (ownerData.character || ownerData.name) : item.owner;
+                    titleHtml = `<h3 class="item-title">${cName} Wealth</h3>`;
+                }
+            }
+
+            if (state.isDmMode || item.isCurseRevealed) {
+                plainDC = getDisplayText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC || "";
+                plainCurse = getDisplayText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails || "";
+                if (plainDC.trim() || plainCurse.trim()) hasCurse = true;
+            }
+
+            if (hasCurse) {
+                if (item.isCurseRevealed) curseHtml = `<div class="curse-box"><strong>💀 Curse Revealed</strong><br><em style="font-size:11px; color:#aaa;">DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
+                else if (state.isDmMode) curseHtml = `<div class="curse-box hidden"><strong>🤫 Hidden Curse (DM Only)</strong><br><em style="font-size:11px; color:#aaa;">DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
+            }
+
+            const ownerDisplay = getPlayerDisplayName(state.players.find(p => p.name === item.owner)) || item.owner;
+            const rarity = item.rarity || "Mundane";
+            let badgesHtml = `<span class="badge type">${item.cardType === 'Transcription' ? '📜 Transcription' : (item.cardType === 'Treasure' ? '💎 Wealth' : (item.cardType === 'Quest' ? '🗺️ Quest' : (item.cardType === 'Note' ? '📝 Note' : '🗡️ Item')))}</span>`;
+            
+            if (item.cardType !== 'Note' && item.cardType !== 'Quest') {
+                if (item.cardType === 'Item') badgesHtml += `<span class="badge ${rarity.toLowerCase()}">${rarity}</span>`;
+                badgesHtml += `<span class="badge owner">🎒 ${ownerDisplay}</span>`;
+                if (item.storageLocation) badgesHtml += `<span class="badge location">📍 ${item.storageLocation}</span>`;
+                if (item.weight && item.weight !== "-") badgesHtml += `<span class="badge">⚖️ ${item.weight}</span>`;
                 
-                let titleToShow = item.apparentName || "Unknown Item";
-                let subtitleHtml = ""; let descHtml = ""; let curseHtml = "";
-
-                if (item.isIdentified) {
-                    titleToShow = getDisplayText(item.trueName, item.secretKeeper, true) || item.trueName || item.apparentName;
-                    const plainDesc = getDisplayText(item.description, item.secretKeeper, true) || item.description;
-                    descHtml = plainDesc ? plainDesc.replace(/\n/g, '<br>') : "";
-                } else if (state.isDmMode) {
-                    const plainTrueName = getDisplayText(item.trueName, item.secretKeeper, false) || item.trueName;
-                    const plainDesc = getDisplayText(item.description, item.secretKeeper, false) || item.description;
-                    subtitleHtml = `<div class="true-name-reveal">True Name: ${plainTrueName}</div>`;
-                    descHtml = plainDesc ? plainDesc.replace(/\n/g, '<br>') : "";
-                } else {
-                    descHtml = "<div class='hidden-text'>Item properties are unknown until identified.</div>";
+                if (item.hasQuantity && item.cardType !== 'Treasure') {
+                    badgesHtml += `<span class="badge qty">📦 QTY: ${item.quantity !== undefined ? item.quantity : 1}${item.maxQuantity ? '/'+item.maxQuantity : ''}</span>`;
                 }
+                if (item.requiresAttunement && !item.isAttuned) badgesHtml += `<span class="badge">🔮 Req. Attunement</span>`;
+                if (item.isAttuned) badgesHtml += `<span class="badge attunement">🔗 Attuned</span>`;
+                if (item.isIdentified) badgesHtml += `<span class="badge" style="background:#27ae60;">👁️ Identified</span>`;
+                else badgesHtml += `<span class="badge" style="background:#7f8c8d;">❓ Unidentified</span>`;
+            } else if (item.cardType === 'Quest') {
+                badgesHtml += `<span class="badge" style="background:#3498db;">Assigned to: ${ownerDisplay}</span>`;
+            }
+            if (item.secretKeeper && item.secretKeeper !== "Shared") badgesHtml += `<span class="badge keeper">GM: ${item.secretKeeper}</span>`;
 
-                let plainDC = ""; let plainCurse = ""; let hasCurse = false;
-                if (state.isDmMode || item.isCurseRevealed) {
-                    plainDC = getDisplayText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC || "";
-                    plainCurse = getDisplayText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails || "";
-                    if (plainDC.trim() !== "" || plainCurse.trim() !== "") { hasCurse = true; }
-                }
+            let imgHtml = item.imageUrl ? `<img src="${item.imageUrl}" alt="Item">` : `<div class="image-placeholder">No Image</div>`;
+            if (item.cardType === 'Note' || item.cardType === 'Treasure' || item.cardType === 'Quest') imgHtml = ""; 
 
-                if (hasCurse) {
-                    if (item.isCurseRevealed) {
-                        curseHtml = `<div class="curse-box"><strong>💀 Curse Revealed</strong><br><em style="font-size: 11px; color:#aaa;">Identify DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
-                    } else if (state.isDmMode) {
-                        curseHtml = `<div class="curse-box hidden"><strong>🤫 Hidden Curse (DM Only)</strong><br><em style="font-size: 11px; color:#aaa;">Identify DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
-                    }
-                }
-
-                const imgHtml = item.imageUrl ? `<img src="${item.imageUrl}" alt="Item">` : `<div class="image-placeholder">No Image URL</div>`;
-                const ownerData = state.players.find(p => p.name === item.owner);
-                const ownerDisplay = ownerData ? getPlayerDisplayName(ownerData) : (item.owner || "Unclaimed");
-
-                let consumeActionsHtml = "";
-                if (item.isConsumable) {
-                    const canEditQty = state.isDmMode || (state.currentUser && item.owner === state.currentUser.name);
-                    if (canEditQty) {
-                        consumeActionsHtml = `
-                            <div class="consume-controls">
-                                <span style="font-size:12px; color:#aaa; font-weight:bold;">QTY:</span>
-                                <button class="qty-btn minus" onclick="decrementQuantity('${item.id}')">-</button>
-                                <span style="font-size:16px; font-weight:bold; min-width:24px; text-align:center;">${item.quantity !== undefined ? item.quantity : 1}</span>
-                                <button class="qty-btn plus" onclick="incrementQuantity('${item.id}', '${item.phantomDataStr || ""}')">+</button>
-                                ${(!item.isPhantom && item.quantity === 0 && !state.isDmMode) ? `<button onclick="removeItem('${item.id}')" style="background:#c0392b; padding:4px 8px; margin-left:auto; font-size:11px;">🗑️ Clear Empty</button>` : ''}
-                            </div>
-                        `;
-                    }
-                }
-
-                let playerActionsHtml = "";
-                if (state.currentUser && !state.isDmMode && !item.isPhantom) {
-                    if (item.owner === "Party Stash") {
-                        playerActionsHtml = `<button onclick="takeItem('${item.id}')" style="background: #27ae60; width: 100%;">🎒 Take Item</button>`;
-                    } else if (item.owner === state.currentUser.name) {
-                        playerActionsHtml += `<button onclick="togglePlayerItemAction('${item.id}', 'isEquipped')" style="background: ${item.isEquipped ? '#7f8c8d' : '#34495e'}; flex:1;">${item.isEquipped ? '👕 Unequip' : '👕 Equip'}</button>`;
-                        if (item.requiresAttunement) {
-                            playerActionsHtml += `<button onclick="togglePlayerItemAction('${item.id}', 'isAttuned')" style="background: ${item.isAttuned ? '#8e44ad' : '#9b59b6'}; flex:1;">${item.isAttuned ? '🔗 Break Attunement' : '🔗 Attune'}</button>`;
-                        }
-                        
-                        if (item.quantity > 0 && (item.isStandard || item.isConsumable)) {
-                            playerActionsHtml += `<button onclick="returnOneItem('${item.id}')" style="background: #d35400; flex:1;" title="Return 1 to Stash (Keep card)">📦 Return 1</button>`;
-                        }
-                        
-                        playerActionsHtml += `<button onclick="returnItem('${item.id}')" style="background: #e67e22; flex:1;" title="Return entirely to Stash">📦 Return ${item.quantity > 1 ? 'All' : ''}</button>`;
-                    }
-                }
-                
-                let shareButtonHtml = "";
-                if (item.secretKeeper === "Shared") {
-                    shareButtonHtml = `<div style="font-size:12px; color:#2ecc71; text-align:center; width:100%; padding: 10px 0; border-top: 1px dashed #444; margin-top: 10px;">🔓 Shared with all DMs</div>`;
-                } else if (state.currentUser && state.currentUser.name === item.secretKeeper) {
-                    shareButtonHtml = `<div style="border-top: 1px dashed #444; margin-top: 10px; padding-top: 10px; width: 100%;"><button onclick="makeShared('${item.id}')" style="background: #9b59b6; width: 100%;">🔓 Allow All DMs to Edit</button></div>`;
-                }
-
-                const displayHtml = `
-                    <div class="image-container">${imgHtml}</div>
-                    <div class="card-content">
-                        <div><h3 class="item-title">${titleToShow}</h3>${subtitleHtml}</div>
-                        <div class="badges">
-                            <span class="badge owner">🎒 ${ownerDisplay}</span>
-                            <span class="badge">⚖️ ${item.weight || '-'}</span>
-                            <span class="badge qty">📦 Qty: ${item.quantity !== undefined ? item.quantity : 1}</span>
-                            ${item.isStandard ? '<span class="badge" style="background:#2980b9;">📚 Standard</span>' : ''}
-                            ${item.isEquipped ? '<span class="badge equipped">👕 Equipped</span>' : ''}
-                            ${item.requiresAttunement && !item.isAttuned ? '<span class="badge">🔮 Requires Attunement</span>' : ''}
-                            ${item.isAttuned ? '<span class="badge attunement">🔗 Attuned</span>' : ''}
-                            ${item.isIdentified ? '<span class="badge" style="background:#27ae60;">👁️ Identified</span>' : '<span class="badge" style="background:#7f8c8d;">❓ Unidentified</span>'}
-                            ${item.isCurseRevealed ? '<span class="badge" style="background:#c0392b;">💀 Cursed</span>' : ''}
-                            ${item.secretKeeper && !item.isPhantom ? `<span class="badge keeper">GM: ${item.secretKeeper}</span>` : ''}
-                        </div>
-                        <div class="description-box">${descHtml}</div>
-                        ${curseHtml}
-                        
-                        ${consumeActionsHtml}
-                        ${playerActionsHtml ? `<div class="card-actions" style="border-top: none; padding-top: 0;">${playerActionsHtml}</div>` : ''}
-                        
-                        ${state.isDmMode && !item.isPhantom ? `
-                            <div class="card-actions">
-                                <button onclick="toggleIdentified('${item.id}')" style="background: ${item.isIdentified ? '#f39c12' : '#2ecc71'}; flex: 1;" ${!isKeeper ? 'disabled title="Only the original DM can identify this"' : ''}>
-                                    ${item.isIdentified ? 'Mark Unidentified' : 'Mark Identified'}
-                                </button>
-                                ${hasCurse ? `
-                                <button onclick="toggleCurse('${item.id}')" style="background: ${item.isCurseRevealed ? '#c0392b' : '#34495e'}; flex: 1;" ${!isKeeper ? 'disabled title="Only the original DM can reveal the curse"' : ''}>
-                                    ${item.isCurseRevealed ? 'Hide Curse' : 'Reveal Curse'}
-                                </button>` : ''}
-                                <button onclick="toggleEdit('${item.id}')" style="flex: 1;">Edit Item</button>
-                            </div>
-                        ` : ''}
+            let wealthHtml = "";
+            if (item.cardType === 'Treasure') {
+                let w = parseWealth(item.wealthData);
+                let canEdit = state.isDmMode || (state.currentUser && item.owner === state.currentUser.name);
+                wealthHtml = `
+                    <div class="wealth-inputs" style="${canEdit ? '' : 'pointer-events:none; opacity:0.8;'}">
+                        <div class="wealth-field"><label>PP</label><input type="number" min="0" value="${w.pp||0}" oninput="updateWealth('${item.id}', 'pp', this.value, true)"></div>
+                        <div class="wealth-field"><label>GP</label><input type="number" min="0" value="${w.gp||0}" oninput="updateWealth('${item.id}', 'gp', this.value, true)"></div>
+                        <div class="wealth-field"><label>EP</label><input type="number" min="0" value="${w.ep||0}" oninput="updateWealth('${item.id}', 'ep', this.value, true)"></div>
+                        <div class="wealth-field"><label>SP</label><input type="number" min="0" value="${w.sp||0}" oninput="updateWealth('${item.id}', 'sp', this.value, true)"></div>
+                        <div class="wealth-field"><label>CP</label><input type="number" min="0" value="${w.cp||0}" oninput="updateWealth('${item.id}', 'cp', this.value, true)"></div>
+                        <div style="width:100%; margin-top:5px;"><label style="font-size:10px; color:#aaa; font-weight:bold;">Gems & Art Objects</label><input type="text" value="${w.gems||""}" placeholder="e.g. 2x Rubies (50gp)" oninput="updateWealth('${item.id}', 'gems', this.value, true)" style="margin:0; font-size:12px; padding:6px;"></div>
                     </div>
                 `;
+            }
 
-                const selectOptions = rosterOptionsHtml.map(opt => `<option value="${opt.val}" ${item.owner === opt.val ? "selected" : ""}>${opt.label}</option>`).join("");
-
-                let editHtml = "";
-                if (!item.isPhantom) {
-                    editHtml = `
-                        <div class="edit-form ${item.isEditing && state.isDmMode ? 'active' : ''}">
-                            <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Item</h3>
-                            <div class="form-group"><label>Apparent Name (Public)</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value)"></div>
-                            <div class="form-group"><label>True Name (Secret)</label><input type="text" value="${getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName}" oninput="updateItem('${item.id}', 'trueName', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
-                            <div class="form-group" style="flex-grow: 1;"><label>Description & Abilities (Secret)</label><textarea oninput="updateItem('${item.id}', 'description', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description}</textarea></div>
-                            
-                            <div style="border-top: 1px dashed #e74c3c; margin-top: 5px; padding-top: 10px;">
-                                <div class="form-group"><label style="color: #e74c3c;">Identify Spell DC (Secret)</label><input type="text" placeholder="e.g., 15" value="${getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC}" oninput="updateItem('${item.id}', 'curseDetectDC', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
-                                <div class="form-group"><label style="color: #e74c3c;">Curse Details (Secret)</label><textarea oninput="updateItem('${item.id}', 'curseDetails', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails}</textarea></div>
-                            </div>
-
-                            <div class="form-group"><label>Image (Upload or Paste URL)</label>
-                                <div style="display:flex; gap: 10px;">
-                                    <input type="text" value="${item.imageUrl}" placeholder="URL..." oninput="updateItem('${item.id}', 'imageUrl', this.value)" style="flex-grow:1; margin:0;">
-                                    <label class="add-btn" style="cursor:pointer; display:flex; align-items:center; border-radius:4px; padding: 0 10px;">📁 Upload<input type="file" style="display:none;" accept="image/*" onchange="handleImageUpload('${item.id}', this)"></label>
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${selectOptions}</select></div>
-                                <div class="form-group"><label>Weight</label><input type="text" value="${item.weight}" oninput="updateItem('${item.id}', 'weight', this.value)"></div>
-                                <div class="form-group"><label>Quantity</label><input type="number" min="0" value="${item.quantity !== undefined ? item.quantity : 1}" oninput="updateItem('${item.id}', 'quantity', parseInt(this.value) || 0)"></div>
-                            </div>
-                            <div class="form-row" style="margin-top: 10px; flex-wrap:wrap;">
-                                <div class="checkbox-group"><input type="checkbox" id="standard-${item.id}" ${item.isStandard ? 'checked' : ''} onchange="updateItem('${item.id}', 'isStandard', this.checked)"><label for="standard-${item.id}">Is Standard Item (Auto-stacks)</label></div>
-                                <div class="checkbox-group"><input type="checkbox" id="consumable-${item.id}" ${item.isConsumable ? 'checked' : ''} onchange="updateItem('${item.id}', 'isConsumable', this.checked)"><label for="consumable-${item.id}">Is Consumable</label></div>
-                                <div class="checkbox-group"><input type="checkbox" id="equip-${item.id}" ${item.isEquipped ? 'checked' : ''} onchange="updateItem('${item.id}', 'isEquipped', this.checked)"><label for="equip-${item.id}">Equipped/Worn</label></div>
-                                <div class="checkbox-group"><input type="checkbox" id="reqatt-${item.id}" ${item.requiresAttunement ? 'checked' : ''} onchange="updateItem('${item.id}', 'requiresAttunement', this.checked)"><label for="reqatt-${item.id}">Req. Attunement</label></div>
-                                <div class="checkbox-group"><input type="checkbox" id="attune-${item.id}" ${item.isAttuned ? 'checked' : ''} onchange="updateItem('${item.id}', 'isAttuned', this.checked)"><label for="attune-${item.id}">Is Attuned</label></div>
-                            </div>
-                            
-                            ${shareButtonHtml}
-
-                            ${(!item.isStandard && isKeeper) ? `<div style="border-top: 1px dashed #444; margin-top: 10px; padding-top: 10px; width: 100%;"><button onclick="saveToCatalog('${item.id}')" style="background: #3498db; width: 100%;">🌟 Save to Standard Catalog</button></div>` : ''}
-                            
-                            <div class="card-actions" style="margin-top: 10px;"><button class="del-btn" onclick="removeItem('${item.id}')" ${!isKeeper && item.secretKeeper !== "Shared" ? 'disabled' : ''}>Delete</button><button class="add-btn" onclick="toggleEdit('${item.id}');">Done</button></div>
-                        </div>
-                    `;
+            let consumeActionsHtml = "";
+            if (item.hasQuantity && item.cardType !== 'Treasure') {
+                const canEditQty = state.isDmMode || (state.currentUser && item.owner === state.currentUser.name);
+                if (canEditQty) {
+                    consumeActionsHtml = `
+                        <div class="consume-controls">
+                            <span style="font-size:12px; color:#aaa; font-weight:bold;">QTY:</span>
+                            <button class="qty-btn minus" onclick="changeQty('${item.id}', -1)">-</button>
+                            <span style="font-size:16px; font-weight:bold; min-width:24px; text-align:center;">${item.quantity !== undefined ? item.quantity : 1}${item.maxQuantity ? '/'+item.maxQuantity : ''}</span>
+                            <button class="qty-btn plus" onclick="changeQty('${item.id}', 1)">+</button>
+                            ${(item.isConsumable && item.quantity === 0 && !state.isDmMode) ? `<button class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')" style="margin-left:auto;">🗑️ Clear Empty</button>` : ''}
+                        </div>`;
                 }
+            }
 
-                card.innerHTML = displayHtml + editHtml;
-                gridEl.appendChild(card);
-            });
+            let playerActionsHtml = "";
+            if (state.currentUser && !state.isDmMode && item.cardType === 'Item') {
+                if (item.owner === "Party Stash") {
+                    playerActionsHtml = `<button onclick="takeItem('${item.id}')" style="background: #27ae60; width: 100%;">🎒 Take Item</button>`;
+                } else if (item.owner === state.currentUser.name) {
+                    if (item.requiresAttunement) playerActionsHtml += `<button onclick="toggleProp('${item.id}', 'isAttuned')" style="background: ${item.isAttuned ? '#8e44ad' : '#9b59b6'}; flex:1;">${item.isAttuned ? '🔗 Break Attunement' : '🔗 Attune'}</button>`;
+                    playerActionsHtml += `<button onclick="returnItem('${item.id}')" style="background: #e67e22; flex:1;">📦 Return to Stash</button>`;
+                }
+            }
+
+            let dmActionsHtml = "";
+            if (state.isDmMode) {
+                if (item.cardType !== 'Quest' && item.cardType !== 'Note' && item.cardType !== 'Treasure') {
+                    dmActionsHtml = `<button onclick="toggleIdentified('${item.id}')" style="background: ${item.isIdentified ? '#f39c12' : '#2ecc71'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isIdentified ? 'Mark Unidentified' : 'Mark Identified'}</button>`;
+                    if (hasCurse) dmActionsHtml += `<button onclick="toggleCurse('${item.id}')" style="background: ${item.isCurseRevealed ? '#c0392b' : '#34495e'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isCurseRevealed ? 'Hide Curse' : 'Reveal Curse'}</button>`;
+                }
+                dmActionsHtml += `<button onclick="toggleEdit('${item.id}')" style="flex: 1;">Edit ${item.cardType}</button>`;
+            } else if (item.owner === state.currentUser?.name || item.cardType === 'Note') {
+                dmActionsHtml = `<button onclick="toggleEdit('${item.id}')" style="flex: 1; background:#555;">Edit Details</button>`;
+            }
+
+            const printSelectHtml = `<input type="checkbox" class="print-checkbox" title="Select for Printing">`;
+
+            card.innerHTML = `
+                ${printSelectHtml}
+                ${imgHtml ? `<div class="image-container">${imgHtml}</div>` : ''}
+                <div class="card-content">
+                    <div>${titleHtml}${subtitleHtml}</div>
+                    <div class="badges">${badgesHtml}</div>
+                    ${wealthHtml}
+                    ${descHtml ? `<div class="description-box">${descHtml}</div>` : ''}
+                    ${curseHtml}
+                    ${consumeActionsHtml}
+                    ${playerActionsHtml ? `<div class="card-actions" style="border-top: none; padding-top: 0;">${playerActionsHtml}</div>` : ''}
+                    ${dmActionsHtml ? `<div class="card-actions">${dmActionsHtml}</div>` : ''}
+                </div>
+                ${createEditForm(item)}
+            `;
+            return card;
+        }
+
+        // --- Edit Form Builder ---
+        function createEditForm(item) {
+            const isKeeper = state.currentUser && (state.currentUser.name === item.secretKeeper || (state.isDmMode && item.secretKeeper === "Shared"));
+            const rosterOptionsHtml = ["Party Stash", "DM Stash", ...state.players.map(p => p.name)].map(val => `<option value="${val}" ${item.owner === val ? "selected" : ""}>${getPlayerDisplayName(state.players.find(p=>p.name===val)) || val}</option>`).join("");
+            const raritySelectHtml = RARITY_OPTIONS.map(opt => `<option value="${opt}" ${item.rarity === opt ? "selected" : ""}>${opt}</option>`).join("");
+            const sizeSelectHtml = CARD_SIZES.map(opt => `<option value="${opt}" ${(item.cardSize || "Standard") === opt ? "selected" : ""}>${opt}</option>`).join("");
+            const locSelectHtml = STORAGE_LOCATIONS.map(opt => `<option value="${opt}" ${(item.storageLocation || "Backpack") === opt ? "selected" : ""}>${opt}</option>`).join("");
+
+            let shareBtn = item.secretKeeper === "Shared" ? `<div style="font-size:12px; color:#2ecc71; text-align:center; width:100%; padding: 10px 0; border-top: 1px dashed #444; margin-top: 10px;">🔓 Shared with all DMs</div>` 
+                : (isKeeper ? `<div style="border-top: 1px dashed #444; margin-top: 10px; padding-top: 10px; width: 100%;"><button onclick="makeShared('${item.id}')" style="background: #9b59b6; width: 100%;">🔓 Allow All DMs to Edit</button></div>` : '');
+
+            if (item.cardType === 'Note') {
+                return `
+                <div class="edit-form ${item.isEditing ? 'active' : ''}">
+                    <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Note</h3>
+                    <div class="form-group"><label>Title</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value, true)"></div>
+                    <div class="form-group" style="flex-grow: 1;"><label>Content</label><textarea style="height:200px;" oninput="updateItem('${item.id}', 'description', this.value, true)">${item.description || ""}</textarea></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
+                        <div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div>
+                    </div>
+                    <div class="card-actions" style="margin-top: 10px;">
+                        <button type="button" class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')">Delete</button>
+                        <div style="display:flex; gap:10px;">
+                            <button type="button" class="del-btn" id="discard-btn-${item.id}" onclick="confirmDiscard('${item.id}')" style="background:#7f8c8d;">Discard</button>
+                            <button type="button" class="add-btn" onclick="toggleEdit('${item.id}')">Done</button>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            if (item.cardType === 'Treasure') {
+                let w = parseWealth(item.wealthData);
+                return `
+                <div class="edit-form ${item.isEditing ? 'active' : ''}">
+                    <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Wealth Container</h3>
+                    <div class="form-group"><label>Container Name</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value, true)"></div>
+                    
+                    <div class="wealth-inputs">
+                        <div class="wealth-field"><label>PP</label><input type="number" min="0" value="${w.pp||0}" oninput="updateWealth('${item.id}', 'pp', this.value, true)"></div>
+                        <div class="wealth-field"><label>GP</label><input type="number" min="0" value="${w.gp||0}" oninput="updateWealth('${item.id}', 'gp', this.value, true)"></div>
+                        <div class="wealth-field"><label>EP</label><input type="number" min="0" value="${w.ep||0}" oninput="updateWealth('${item.id}', 'ep', this.value, true)"></div>
+                        <div class="wealth-field"><label>SP</label><input type="number" min="0" value="${w.sp||0}" oninput="updateWealth('${item.id}', 'sp', this.value, true)"></div>
+                        <div class="wealth-field"><label>CP</label><input type="number" min="0" value="${w.cp||0}" oninput="updateWealth('${item.id}', 'cp', this.value, true)"></div>
+                        <div style="width:100%; margin-top:5px;"><label style="font-size:10px; color:#aaa; font-weight:bold;">Gems & Art Objects</label><input type="text" value="${w.gems||""}" placeholder="e.g. 2x Rubies (50gp)" oninput="updateWealth('${item.id}', 'gems', this.value, true)" style="margin:0; font-size:12px; padding:6px;"></div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
+                        <div class="form-group"><label>Location</label><select onchange="updateItem('${item.id}', 'storageLocation', this.value)">${locSelectHtml}</select></div>
+                    </div>
+                    <div class="form-row"><div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div></div>
+                    <div class="card-actions" style="margin-top: 10px;">
+                        <button type="button" class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')">Delete</button>
+                        <div style="display:flex; gap:10px;">
+                            <button type="button" class="del-btn" id="discard-btn-${item.id}" onclick="confirmDiscard('${item.id}')" style="background:#7f8c8d;">Discard</button>
+                            <button type="button" class="add-btn" onclick="toggleEdit('${item.id}')">Done</button>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            return `
+                <div class="edit-form ${item.isEditing ? 'active' : ''}">
+                    <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit ${item.cardType}</h3>
+                    <div class="form-group"><label>Name (Public)</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value, true)"></div>
+                    <div class="form-group"><label>True Name (Secret)</label><input type="text" value="${getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName}" oninput="updateItem('${item.id}', 'trueName', this.value, true)" ${!isKeeper ? 'disabled' : ''}></div>
+                    
+                    <div class="form-row">
+                        ${item.cardType === 'Item' ? `<div class="form-group"><label>Rarity</label><select onchange="updateRarity('${item.id}', this.value)" ${!isKeeper ? 'disabled' : ''}>${raritySelectHtml}</select></div>` : ''}
+                        <div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div>
+                    </div>
+
+                    <div class="form-group" style="flex-grow: 1;"><label>Description (Secret)</label><textarea oninput="updateItem('${item.id}', 'description', this.value, true)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description}</textarea></div>
+                    
+                    ${item.cardType !== 'Quest' ? `
+                    <div style="border-top: 1px dashed #e74c3c; margin-top: 5px; padding-top: 10px;">
+                        <div class="form-group"><label style="color: #e74c3c;">Identify Spell DC (Secret)</label><input type="text" placeholder="e.g., 15" value="${getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC}" oninput="updateItem('${item.id}', 'curseDetectDC', this.value, true)" ${!isKeeper ? 'disabled' : ''}></div>
+                        <div class="form-group"><label style="color: #e74c3c;">Curse Details / DM Notes (Secret)</label><textarea oninput="updateItem('${item.id}', 'curseDetails', this.value, true)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails}</textarea></div>
+                    </div>
+                    <div class="form-group"><label>Image URL</label>
+                        <div style="display:flex; gap: 10px;">
+                            <input type="text" value="${item.imageUrl}" placeholder="URL..." oninput="updateItem('${item.id}', 'imageUrl', this.value, true)" style="flex-grow:1; margin:0;">
+                            <label class="add-btn" style="cursor:pointer; display:flex; align-items:center; border-radius:4px; padding: 0 10px;">📁 Upload<input type="file" style="display:none;" accept="image/*" onchange="handleImageUpload('${item.id}', this)"></label>
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <div class="form-row" style="margin-top: 10px; flex-wrap:wrap; border-top: 1px dashed #555; padding-top: 10px;">
+                        <div class="checkbox-group"><input type="checkbox" id="hasQty-${item.id}" ${item.hasQuantity ? 'checked' : ''} onchange="updateItem('${item.id}', 'hasQuantity', this.checked)"><label for="hasQty-${item.id}">Has Qty/Charges</label></div>
+                        <div class="checkbox-group"><input type="checkbox" id="consumable-${item.id}" ${item.isConsumable ? 'checked' : ''} onchange="updateItem('${item.id}', 'isConsumable', this.checked)"><label for="consumable-${item.id}">Is Consumable (Deletes at 0)</label></div>
+                    </div>
+                    <div class="form-row" style="${item.hasQuantity ? '' : 'opacity: 0.3; pointer-events:none;'}">
+                        <div class="form-group"><label>Current Qty</label><input type="number" min="0" value="${item.quantity !== undefined ? item.quantity : 1}" oninput="updateItem('${item.id}', 'quantity', parseInt(this.value) || 0, true)"></div>
+                        <div class="form-group"><label>Max Qty (Optional)</label><input type="number" min="0" placeholder="e.g. 10" value="${item.maxQuantity || ''}" oninput="updateItem('${item.id}', 'maxQuantity', this.value, true)"></div>
+                    </div>
+
+                    <div class="form-row" style="border-top: 1px dashed #555; padding-top: 10px;">
+                        <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
+                        <div class="form-group"><label>Location</label><select onchange="updateItem('${item.id}', 'storageLocation', this.value)">${locSelectHtml}</select></div>
+                        ${item.cardType === 'Item' ? `<div class="form-group"><label>Weight</label><input type="text" value="${item.weight}" oninput="updateItem('${item.id}', 'weight', this.value, true)"></div>` : ''}
+                    </div>
+
+                    ${item.cardType === 'Item' ? `
+                    <div class="form-row" style="margin-top: 10px; flex-wrap:wrap;">
+                        <div class="checkbox-group"><input type="checkbox" id="reqatt-${item.id}" ${item.requiresAttunement ? 'checked' : ''} onchange="updateItem('${item.id}', 'requiresAttunement', this.checked)"><label for="reqatt-${item.id}">Req. Attunement</label></div>
+                        <div class="checkbox-group"><input type="checkbox" id="attune-${item.id}" ${item.isAttuned ? 'checked' : ''} onchange="updateItem('${item.id}', 'isAttuned', this.checked)"><label for="attune-${item.id}">Is Attuned</label></div>
+                    </div>` : ''}
+                    
+                    ${shareBtn}
+                    
+                    <div class="card-actions" style="margin-top: 10px;">
+                        <button type="button" class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')" ${!isKeeper && item.secretKeeper !== "Shared" ? 'disabled' : ''}>Delete</button>
+                        <div style="display:flex; gap:10px;">
+                            <button type="button" class="del-btn" id="discard-btn-${item.id}" onclick="confirmDiscard('${item.id}')" style="background:#7f8c8d;">Discard</button>
+                            <button type="button" class="add-btn" onclick="toggleEdit('${item.id}')">Done</button>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
     </script>
-    
-    <a href="privacy.html" class="privacy-ribbon" title="View Privacy Policy">
-        <span>Privacy</span>
-    </a>
 </body>
 </html>

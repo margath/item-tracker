@@ -1396,18 +1396,18 @@ function doPost(e) {
             let playerActionsHtml = "";
             if (state.currentUser && !state.isDmMode && item.cardType === 'Item') {
                 if (item.owner === "Party Stash") {
-                    playerActionsHtml = `<button onclick="takeItem('${item.id}')" style="background: #27ae60; width: 100%;">🎒 Take Item</button>`;
+                    playerActionsHtml = `<button onclick="updateItem('${item.id}', 'owner', state.currentUser.name)" style="background: #27ae60; width: 100%;">🎒 Take Item</button>`;
                 } else if (item.owner === state.currentUser.name) {
                     if (item.requiresAttunement) playerActionsHtml += `<button onclick="toggleProp('${item.id}', 'isAttuned')" style="background: ${item.isAttuned ? '#8e44ad' : '#9b59b6'}; flex:1;">${item.isAttuned ? '🔗 Break Attunement' : '🔗 Attune'}</button>`;
-                    playerActionsHtml += `<button onclick="returnItem('${item.id}')" style="background: #e67e22; flex:1;">📦 Return to Stash</button>`;
+                    playerActionsHtml += `<button onclick="updateItem('${item.id}', 'owner', 'Party Stash'); updateItem('${item.id}', 'isEquipped', false);" style="background: #e67e22; flex:1;">📦 Return to Stash</button>`;
                 }
             }
 
             let dmActionsHtml = "";
             if (state.isDmMode) {
                 if (item.cardType !== 'Quest' && item.cardType !== 'Note' && item.cardType !== 'Treasure') {
-                    dmActionsHtml = `<button onclick="toggleIdentified('${item.id}')" style="background: ${item.isIdentified ? '#f39c12' : '#2ecc71'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isIdentified ? 'Mark Unidentified' : 'Mark Identified'}</button>`;
-                    if (hasCurse) dmActionsHtml += `<button onclick="toggleCurse('${item.id}')" style="background: ${item.isCurseRevealed ? '#c0392b' : '#34495e'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isCurseRevealed ? 'Hide Curse' : 'Reveal Curse'}</button>`;
+                    dmActionsHtml = `<button onclick="toggleProp('${item.id}', 'isIdentified')" style="background: ${item.isIdentified ? '#f39c12' : '#2ecc71'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isIdentified ? 'Mark Unidentified' : 'Mark Identified'}</button>`;
+                    if (hasCurse) dmActionsHtml += `<button onclick="toggleProp('${item.id}', 'isCurseRevealed')" style="background: ${item.isCurseRevealed ? '#c0392b' : '#34495e'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isCurseRevealed ? 'Hide Curse' : 'Reveal Curse'}</button>`;
                 }
                 dmActionsHtml += `<button onclick="toggleEdit('${item.id}')" style="flex: 1;">Edit ${item.cardType}</button>`;
             } else if (item.owner === state.currentUser?.name || item.cardType === 'Note') {

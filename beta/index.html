@@ -366,10 +366,10 @@
             <h2>Select Character</h2>
             <p style="font-size: 12px; color: #aaa;">Enter your PIN to manage your inventory.</p>
             <select id="login-name"></select>
-            <input type="password" id="login-pin" placeholder="Enter PIN (e.g., 1111)">
+            <input type="password" id="login-pin" placeholder="Enter PIN (e.g., 1111)" onkeydown="handleLoginEnter(event)">
             
             <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
-                <button class="add-btn" onclick="submitLogin(false)">👤 Enter as Player</button>
+                <button class="add-btn" onclick="handleLoginEnter({key: 'Enter'})">👤 Enter as Player</button>
                 <button style="background: #555; margin-top: 5px;" onclick="closeModal('login-modal')">Cancel</button>
             </div>
         </div>
@@ -379,7 +379,7 @@
         <div class="modal-box" style="text-align: center; width: 300px;">
             <h2>Unlock DM View</h2>
             <p style="font-size: 12px; color: #aaa;">Enter your PIN to switch to Dungeon Master tools.</p>
-            <input type="password" id="unlock-dm-pin" placeholder="Enter PIN">
+            <input type="password" id="unlock-dm-pin" placeholder="Enter PIN" onkeydown="if(event.key === 'Enter') submitUnlockDm()">
             <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
                 <button class="srd-btn" onclick="submitUnlockDm()">🔒 Unlock</button>
                 <button style="background: #555;" onclick="closeModal('unlock-dm-modal')">Cancel</button>
@@ -552,8 +552,19 @@ function doPost(e) {
                 <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                     <button onclick="copyJoinLink()" style="background: #3498db;">🔗 Copy Join Link</button>
                     <button id="btn-disconnect" style="background: #e74c3c;" onclick="confirmDisconnect()">Disconnect App</button>
-                    <button style="background: #555;" onclick="closeModal('setup-screen')">Close</button>
                 </div>
+            </div>
+
+            <div style="margin-top: 20px; border-top: 1px dashed #555; padding-top: 15px; text-align: center;">
+                <p style="font-size: 12px; color: #aaa; margin-bottom: 10px;">More Tools at GamePortal:</p>
+                <a href="https://tools.gameportal.win/" target="_blank">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https%3A%2F%2Ftools.gameportal.win%2F" alt="GamePortal Tools" style="border-radius: 4px; background: white; padding: 5px; width: 80px; height: 80px;">
+                </a>
+                <p style="font-size: 11px; margin-top: 8px;"><a href="https://tools.gameportal.win/" target="_blank" style="color: #3498db; text-decoration: none;">tools.gameportal.win</a></p>
+            </div>
+
+            <div style="text-align: right; margin-top: 20px;">
+                <button style="background: #555;" onclick="closeModal('setup-screen')">Close</button>
             </div>
         </div>
     </div>
@@ -613,6 +624,7 @@ function doPost(e) {
     </div>
 
     <script>
+        const GITHUB_REPO = "YOUR_USERNAME/YOUR_REPO"; 
         const CAMPAIGN_KEY = "SecretDragonHoard2026"; 
         const REQUIRED_BACKEND_VERSION = "2.0";
 
@@ -709,7 +721,7 @@ function doPost(e) {
 
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        function getPlayerDisplayName(p) { return p ? (p.character ? `${p.name} (${p.character})` : p.name) : null; }
+        function getPlayerDisplayName(p) { return p ? (p.character ? `${p.name} (${p.character})` : p.name) : "Party Stash"; }
         function parseWeight(str, qty) { const n = parseFloat(String(str).replace(/[^\d.]/g, '')); return isNaN(n) ? 0 : n * (qty || 1); }
         function parseWealth(data) {
             if (!data) return {};
@@ -852,6 +864,15 @@ function doPost(e) {
             });
             document.getElementById('login-pin').value = ''; openModal('login-modal');
         }
+        
+        function handleLoginEnter(event) {
+            if (event.key === 'Enter') {
+                const name = document.getElementById('login-name').value;
+                const isDm = state.players.find(p => p.name === name)?.character === 'DM' || name === 'Dungeon Master';
+                submitLogin(isDm);
+            }
+        }
+        
         function submitLogin(asDm) {
             const name = document.getElementById('login-name').value; const pin = document.getElementById('login-pin').value;
             const user = state.players.find(p => p.name === name && p.pin === pin);
@@ -1234,7 +1255,7 @@ function doPost(e) {
                 ['logout-btn-header', 'user-info-display', 'add-dropdown-container', 'switch-mode-btn', 'dm-toolbar'].forEach(id => document.getElementById(id).style.display = 'none');
             }
 
-            // Ensure every player has a Treasure card
+            // Ensure every player has a Treasure card (Runs for Demo & Cloud)
             if (state.players.length > 0) {
                 state.players.forEach(p => {
                     if (p.character === 'DM' || p.name === 'Party Stash') return;

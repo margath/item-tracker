@@ -1,9 +1,18 @@
 name: Stamp Build Version
 
+runs:
+  using: 'node24'
+
 on:
   push:
     branches:
       - main
+    paths:
+      # - '**.html'        # Triggers on ANY HTML file change in the repo
+      # Alternatively, you can be hyper-specific:
+      - 'index.html'
+      - 'beta/index.html'
+      
   workflow_dispatch:
 
 permissions:

@@ -559,21 +559,47 @@ function doPost(e) {
         function loadDemoData() {
             state.players = [
                 { name: "Hank", pin: "1111", character: "Ranger" }, { name: "Eric", pin: "2222", character: "Cavalier" },
-                { name: "Presto", pin: "4444", character: "Magician" }, { name: "Dungeon Master", pin: "7777", character: "DM" }
+                { name: "Diana", pin: "3333", character: "Acrobat" }, { name: "Presto", pin: "4444", character: "Magician" },
+                { name: "Sheila", pin: "5555", character: "Thief" }, { name: "Bobby", pin: "6666", character: "Barbarian" },
+                { name: "Dungeon Master", pin: "7777", character: "DM" }
             ];
             state.items = [
                 {
-                    id: 1, cardType: "Item", isIdentified: true, apparentName: "Glowing Longbow", trueName: "Energy Bow", hasQuantity: false, quantity: 1, isConsumable: false,
-                    imageUrl: "", weight: "2.5 lbs", requiresAttunement: true, isAttuned: true, storageLocation: "Equipped/Worn", owner: "Hank", cardSize: "Standard", rarity: "Epic",
-                    secretKeeper: "Dungeon Master", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", description: "Fires arrows of pure magical energy." 
+                    id: 1, cardType: "Quest", isIdentified: true, apparentName: "Return Home", trueName: "Return Home", isCollapsed: false,
+                    owner: "Party Stash", cardSize: "Full Page", description: "Find a portal back to the amusement park and escape the Realm of Dungeons & Dragons.", secretKeeper: "Dungeon Master", curseDetails: "The Dungeon Master constantly gives vague riddles instead of actual directions."
                 },
                 {
-                    id: 2, cardType: "Treasure", isIdentified: true, apparentName: "Hank's Pouch", trueName: "Hank's Pouch", hasQuantity: false,
-                    owner: "Hank", cardSize: "Standard", rarity: "Mundane", storageLocation: "Pouch", wealthData: { pp:0, gp:45, ep:0, sp:12, cp:0, gems: "1x Ruby (50gp)" }
+                    id: 2, cardType: "Quest", isIdentified: true, apparentName: "Defeat Venger", trueName: "Defeat Venger", isCollapsed: true,
+                    owner: "Party Stash", cardSize: "Half Page", description: "Venger, the Force of Evil, seeks the magical weapons of the party to conquer the realm.", secretKeeper: "Dungeon Master", curseDetails: "Venger rides a Nightmare and has powerful spellcasting abilities."
                 },
                 {
-                    id: 3, cardType: "Quest", isIdentified: true, apparentName: "Find the Dungeon Master", trueName: "Find the Dungeon Master", isCollapsed: false,
-                    owner: "Party Stash", cardSize: "Full Page", description: "Venger has trapped him in the Realm of Shadows.", secretKeeper: "Dungeon Master", curseDetails: "Venger is waiting in ambush."
+                    id: 3, cardType: "Item", isIdentified: true, apparentName: "Glowing Longbow", trueName: "Energy Bow", hasQuantity: false, quantity: 1, maxQuantity: "", isConsumable: false,
+                    imageUrl: "", weight: "2.5 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, storageLocation: "Equipped/Worn", owner: "Hank", cardSize: "Standard", rarity: "Epic",
+                    secretKeeper: "Dungeon Master", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
+                    description: "Fires arrows of pure magical energy. Can be used to attack, create light, or form solid barriers and ropes."
+                },
+                {
+                    id: 4, cardType: "Item", isIdentified: true, apparentName: "Green Wizard Hat", trueName: "Hat of Many Spells", hasQuantity: true, quantity: 4, maxQuantity: "7", isConsumable: false,
+                    imageUrl: "", weight: "1 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, storageLocation: "Equipped/Worn", owner: "Presto", cardSize: "Standard", rarity: "Rare",
+                    secretKeeper: "Dungeon Master", isCurseRevealed: true, curseDetectDC: "14", isEditing: false,
+                    description: "A magical hat that allows the wearer to pull out magical effects and objects.",
+                    curseDetails: "The magic is highly unpredictable. Often produces comedic or mildly dangerous results instead of the desired spell."
+                },
+                {
+                    id: 5, cardType: "Treasure", isIdentified: true, apparentName: "Dragon Hoard", trueName: "Dragon Hoard", hasQuantity: false,
+                    owner: "Party Stash", cardSize: "Medium", rarity: "Mundane", storageLocation: "Hidden", wealthData: { pp:10, gp:540, ep:0, sp:200, cp:0, gems: "1x Flawless Diamond (1000gp)" }, isEditing: false
+                },
+                {
+                    id: 6, cardType: "Transcription", isIdentified: true, apparentName: "Magical Ink & Paper", trueName: "Magical Ink & Paper", hasQuantity: true, quantity: 3, maxQuantity: "", isConsumable: true,
+                    imageUrl: "", weight: "0.2 lbs", requiresAttunement: false, isAttuned: false, isEquipped: false, storageLocation: "Backpack", owner: "Presto", cardSize: "Mini", rarity: "Uncommon",
+                    secretKeeper: "Shared", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
+                    description: "Contains supplies to transcribe spells. 1 Charge = 1 Spell Level (50gp value)."
+                },
+                {
+                    id: 7, cardType: "Note", isIdentified: true, apparentName: "Mysterious Map Fragment", trueName: "Mysterious Map Fragment", hasQuantity: false,
+                    imageUrl: "", weight: "-", requiresAttunement: false, isAttuned: false, isEquipped: false, storageLocation: "Pouch", owner: "Sheila", cardSize: "Half Page", rarity: "Mundane",
+                    secretKeeper: "Shared", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
+                    description: "A torn piece of parchment showing the path through the Bog of Sorrows. There's a warning scribbled in the margin: 'Beware the Bullywug King!'"
                 }
             ];
         }
@@ -663,7 +689,7 @@ function doPost(e) {
             const name = document.getElementById('login-name').value; const pin = document.getElementById('login-pin').value;
             const user = state.players.find(p => p.name === name && p.pin === pin);
             if (user) { state.currentUser = user; state.isDmMode = asDm; closeModal('login-modal'); renderAll(); } 
-            else alert("Incorrect PIN.");
+            else alert("Incorrect PIN. (Hint for Demo: Try '1111' for Hank, or '7777' for Dungeon Master)");
         }
         function handleLogout() { state.currentUser = null; state.isDmMode = false; state.items.forEach(i => i.isEditing = false); renderAll(); }
         function switchRole() {
@@ -754,7 +780,7 @@ function doPost(e) {
                 
                 // BACKEND UPGRADE CHECK
                 if (data.backendVersion !== REQUIRED_BACKEND_VERSION) {
-                    if (liveSyncInterval) toggleLiveSync(); // Stop polling
+                    if (state.liveSyncInterval) toggleLiveSync(); // Stop polling
                     openModal('db-upgrade-modal');
                     if (btn) { btn.innerText = "⚠️ Upgrade Required"; btn.disabled = false; }
                     return; 
@@ -852,8 +878,8 @@ function doPost(e) {
 
             state.items.unshift({
                 id: Date.now(), cardType: "Item", isIdentified: true, apparentName: "Glass Potion Bottle", trueName: trueName, 
-                hasQuantity: true, quantity: 1, isConsumable: true, storageLocation: "Pouch", weight: "0.5 lbs", description: desc, 
-                cardSize: "Mini", rarity: rarity, owner: "Party Stash", secretKeeper: state.currentUser.name, isEditing: false 
+                hasQuantity: true, quantity: 1, maxQuantity: "", isConsumable: true, storageLocation: "Pouch", weight: "0.5 lbs", description: desc, 
+                cardSize: "Mini", rarity: rarity, owner: "Party Stash", secretKeeper: state.currentUser.name, isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false 
             });
             renderAll(); triggerAutoSave();
         }
@@ -908,7 +934,7 @@ function doPost(e) {
                     let w = parseWeight(i.weight, i.hasQuantity ? i.quantity : 1);
                     if (i.cardType === 'Treasure') {
                         let totalCoins = (parseInt(i.wealthData.pp)||0) + (parseInt(i.wealthData.gp)||0) + (parseInt(i.wealthData.ep)||0) + (parseInt(i.wealthData.sp)||0) + (parseInt(i.wealthData.cp)||0);
-                        coins += totalCoins / 50; // 50 coins = 1 lb
+                        coins += totalCoins / 50; 
                     } else if (["Equipped/Worn", "Belt", "Bandolier"].includes(i.storageLocation)) { combat += w; } 
                     else { pack += w; }
                 });
@@ -946,7 +972,6 @@ function doPost(e) {
 
         // --- Render Engines ---
         function renderAll() {
-            // UI State updates
             document.getElementById('setup-btn-header').innerHTML = state.scriptUrl ? `⚙️✅ Setup` : `⚙️ Setup`;
             document.getElementById('setup-btn-header').className = state.scriptUrl ? 'setup-btn configured' : 'setup-btn';
             
@@ -959,7 +984,7 @@ function doPost(e) {
                 document.getElementById('add-btn-header').style.display = 'block';
                 document.getElementById('add-quest-btn').style.display = state.isDmMode ? 'block' : 'none';
                 document.getElementById('switch-mode-btn').style.display = 'block';
-                document.getElementById('switch-mode-btn').innerHTML = state.isDmMode ? '👤 Switch to Player View' : '👁️ DM View';
+                document.getElementById('switch-mode-btn').innerHTML = state.isDmMode ? '👤 Player View' : '👁️ DM View';
                 document.getElementById('switch-mode-btn').style.background = state.isDmMode ? '#e67e22' : '#9b59b6';
                 document.getElementById('dm-toolbar').style.display = state.isDmMode ? 'flex' : 'none';
                 document.getElementById('srd-btn-header').style.display = state.isDmMode ? 'block' : 'none';
@@ -968,9 +993,10 @@ function doPost(e) {
                 ['logout-btn-header', 'user-info-display', 'add-btn-header', 'switch-mode-btn', 'dm-toolbar', 'srd-btn-header'].forEach(id => document.getElementById(id).style.display = 'none');
             }
 
-            // Ensure every player has a Treasure card
+            // Ensure every player has a Treasure card (skipping DM to keep it clean)
             if (state.scriptUrl && state.players.length > 0) {
                 state.players.forEach(p => {
+                    if (p.character === 'DM') return;
                     if (!state.items.some(i => i.cardType === 'Treasure' && i.owner === p.name)) {
                         state.items.push({
                             id: Date.now() + Math.random(), cardType: "Treasure", isIdentified: true, apparentName: "Personal Wealth", trueName: "Personal Wealth",
@@ -983,7 +1009,7 @@ function doPost(e) {
 
             // Filter & Sort
             let displayItems = state.items.filter(item => {
-                if (item.owner === "DM Stash" && !state.isDmMode) return false; // Hidden from players
+                if (item.owner === "DM Stash" && !state.isDmMode) return false; 
                 if (state.searchQuery.trim() === "") return true;
                 let q = state.searchQuery.toLowerCase();
                 let text = (item.apparentName || "") + " " + (item.owner || "");
@@ -1052,7 +1078,6 @@ function doPost(e) {
             const card = document.createElement('div');
             const cardSizeClass = `card-${(item.cardSize || "Standard").toLowerCase().replace(' ', '-')}`;
             
-            // Handle Collapsed Quests
             if (item.cardType === 'Quest' && item.isCollapsed) {
                 card.className = `loot-card card-collapsed type-quest`;
                 card.innerHTML = `
@@ -1066,10 +1091,8 @@ function doPost(e) {
             }
 
             card.className = `loot-card ${cardSizeClass} ${item.isIdentified ? 'identified' : ''} ${item.isCurseRevealed ? 'cursed' : ''} type-${(item.cardType||'item').toLowerCase()}`;
-            
             const isKeeper = state.isDmMode && state.currentUser && (item.secretKeeper === "Shared" || state.currentUser.name === item.secretKeeper);
             
-            // Decrypt Data
             let titleToShow = item.apparentName; let subtitleHtml = ""; let descHtml = ""; let curseHtml = "";
             let plainDC = ""; let plainCurse = ""; let hasCurse = false;
 
@@ -1080,9 +1103,7 @@ function doPost(e) {
                 const pTrue = getDisplayText(item.trueName, item.secretKeeper, false) || item.trueName;
                 subtitleHtml = `<div class="true-name-reveal">True Name: ${pTrue}</div>`;
                 descHtml = (getDisplayText(item.description, item.secretKeeper, false) || item.description || "").replace(/\n/g, '<br>');
-            } else {
-                descHtml = "<div class='hidden-text'>Properties unknown until identified.</div>";
-            }
+            } else { descHtml = "<div class='hidden-text'>Properties unknown until identified.</div>"; }
 
             if (state.isDmMode || item.isCurseRevealed) {
                 plainDC = getDisplayText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC || "";
@@ -1095,16 +1116,15 @@ function doPost(e) {
                 else if (state.isDmMode) curseHtml = `<div class="curse-box hidden"><strong>🤫 Hidden Curse (DM Only)</strong><br><em style="font-size:11px; color:#aaa;">DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
             }
 
-            // Badges
             const ownerDisplay = getPlayerDisplayName(state.players.find(p => p.name === item.owner)) || item.owner;
             const rarity = item.rarity || "Mundane";
-            let badgesHtml = `<span class="badge type">${item.cardType === 'Transcription' ? '📜 Transcription' : (item.cardType === 'Treasure' ? '💎 Wealth' : (item.cardType === 'Quest' ? '🗺️ Quest' : '🗡️ Item'))}</span>`;
+            let badgesHtml = `<span class="badge type">${item.cardType === 'Transcription' ? '📜 Transcription' : (item.cardType === 'Treasure' ? '💎 Wealth' : (item.cardType === 'Quest' ? '🗺️ Quest' : (item.cardType === 'Note' ? '📝 Note' : '🗡️ Item')))}</span>`;
             
             if (item.cardType !== 'Note' && item.cardType !== 'Quest') {
                 if (item.cardType === 'Item') badgesHtml += `<span class="badge ${rarity.toLowerCase()}">${rarity}</span>`;
                 badgesHtml += `<span class="badge owner">🎒 ${ownerDisplay}</span>`;
                 if (item.storageLocation) badgesHtml += `<span class="badge location">📍 ${item.storageLocation}</span>`;
-                badgesHtml += `<span class="badge">⚖️ ${item.weight || '-'}</span>`;
+                if (item.weight && item.weight !== "-") badgesHtml += `<span class="badge">⚖️ ${item.weight}</span>`;
                 
                 if (item.hasQuantity && item.cardType !== 'Treasure') {
                     badgesHtml += `<span class="badge qty">📦 QTY: ${item.quantity !== undefined ? item.quantity : 1}${item.maxQuantity ? '/'+item.maxQuantity : ''}</span>`;
@@ -1118,11 +1138,9 @@ function doPost(e) {
             }
             if (item.secretKeeper && item.secretKeeper !== "Shared") badgesHtml += `<span class="badge keeper">GM: ${item.secretKeeper}</span>`;
 
-            // Core Layout
             let imgHtml = item.imageUrl ? `<img src="${item.imageUrl}" alt="Item">` : `<div class="image-placeholder">No Image</div>`;
-            if (item.cardType === 'Note' || item.cardType === 'Treasure' || item.cardType === 'Quest') imgHtml = ""; // Skip images for notes/quests to save space
+            if (item.cardType === 'Note' || item.cardType === 'Treasure' || item.cardType === 'Quest') imgHtml = ""; 
 
-            // Treasure Inputs
             let wealthHtml = "";
             if (item.cardType === 'Treasure') {
                 let w = item.wealthData || {};
@@ -1139,7 +1157,6 @@ function doPost(e) {
                 `;
             }
 
-            // Consumable Controls
             let consumeActionsHtml = "";
             if (item.hasQuantity && item.cardType !== 'Treasure') {
                 const canEditQty = state.isDmMode || (state.currentUser && item.owner === state.currentUser.name);
@@ -1155,7 +1172,6 @@ function doPost(e) {
                 }
             }
 
-            // Player Actions
             let playerActionsHtml = "";
             if (state.currentUser && !state.isDmMode && item.cardType === 'Item') {
                 if (item.owner === "Party Stash") {
@@ -1166,7 +1182,6 @@ function doPost(e) {
                 }
             }
 
-            // DM Actions
             let dmActionsHtml = "";
             if (state.isDmMode) {
                 if (item.cardType === 'Quest') {
@@ -1177,7 +1192,6 @@ function doPost(e) {
                 }
                 dmActionsHtml += `<button onclick="toggleEdit('${item.id}')" style="flex: 1;">Edit ${item.cardType}</button>`;
             } else if (item.owner === state.currentUser?.name || item.cardType === 'Note') {
-                // Players can edit their own notes and treasure containers
                 dmActionsHtml = `<button onclick="toggleEdit('${item.id}')" style="flex: 1; background:#555;">Edit Details</button>`;
             }
 
@@ -1212,19 +1226,20 @@ function doPost(e) {
             let shareBtn = item.secretKeeper === "Shared" ? `<div style="font-size:12px; color:#2ecc71; text-align:center; width:100%; padding: 10px 0; border-top: 1px dashed #444; margin-top: 10px;">🔓 Shared with all DMs</div>` 
                 : (isKeeper ? `<div style="border-top: 1px dashed #444; margin-top: 10px; padding-top: 10px; width: 100%;"><button onclick="makeShared('${item.id}')" style="background: #9b59b6; width: 100%;">🔓 Allow All DMs to Edit</button></div>` : '');
 
-            // Simplistic form for Notes
             if (item.cardType === 'Note') {
                 return `
                 <div class="edit-form ${item.isEditing ? 'active' : ''}">
                     <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Note</h3>
                     <div class="form-group"><label>Title</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value)"></div>
                     <div class="form-group" style="flex-grow: 1;"><label>Content</label><textarea style="height:200px;" oninput="updateItem('${item.id}', 'description', this.value)">${item.description || ""}</textarea></div>
-                    <div class="form-row"><div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
+                        <div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div>
+                    </div>
                     <div class="card-actions" style="margin-top: 10px;"><button class="del-btn" onclick="removeItem('${item.id}')">Delete</button><button class="add-btn" onclick="toggleEdit('${item.id}')">Done</button></div>
                 </div>`;
             }
 
-            // Treasure/Wealth Form
             if (item.cardType === 'Treasure') {
                  return `
                 <div class="edit-form ${item.isEditing ? 'active' : ''}">
@@ -1239,7 +1254,6 @@ function doPost(e) {
                 </div>`;
             }
 
-            // Full Form for Items, Quests, Transcriptions
             return `
                 <div class="edit-form ${item.isEditing ? 'active' : ''}">
                     <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit ${item.cardType}</h3>

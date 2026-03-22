@@ -1,6 +1,4 @@
 name: Stamp Build Version
-runs:
-  using: 'node24'
 
 on:
   push:
@@ -43,6 +41,7 @@ jobs:
               print "            shortSha: \"" s "\","
               print "            repo: \"" r "\""
               print "        };"
+              print "        const GITHUB_REPO = \"" r "\";"
               skip=1
               next
             }

@@ -993,8 +993,8 @@ function doPost(e) {
                 ['logout-btn-header', 'user-info-display', 'add-btn-header', 'switch-mode-btn', 'dm-toolbar', 'srd-btn-header'].forEach(id => document.getElementById(id).style.display = 'none');
             }
 
-            // Ensure every player has a Treasure card (skipping DM to keep it clean)
-            if (state.scriptUrl && state.players.length > 0) {
+            // Ensure every player has a Treasure card (runs in both Demo and Live mode)
+            if (state.players.length > 0) {
                 state.players.forEach(p => {
                     if (p.character === 'DM') return;
                     if (!state.items.some(i => i.cardType === 'Treasure' && i.owner === p.name)) {
@@ -1301,7 +1301,7 @@ function doPost(e) {
                         <div class="checkbox-group"><input type="checkbox" id="attune-${item.id}" ${item.isAttuned ? 'checked' : ''} onchange="updateItem('${item.id}', 'isAttuned', this.checked)"><label for="attune-${item.id}">Is Attuned</label></div>
                     </div>` : ''}
                     
-                    ${shareButtonHtml}
+                    ${shareBtn}
                     
                     <div class="card-actions" style="margin-top: 10px;"><button class="del-btn" onclick="removeItem('${item.id}')" ${!isKeeper && item.secretKeeper !== "Shared" ? 'disabled' : ''}>Delete</button><button class="add-btn" onclick="toggleEdit('${item.id}')">Done</button></div>
                 </div>

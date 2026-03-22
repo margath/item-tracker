@@ -355,3 +355,1143 @@
             </div>
         </div>
     </div>
+
+    <div id="wealth-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box" style="max-width: 500px;">
+            <h2>💎 Party Wealth Summary</h2>
+            <div id="wealth-content" style="font-size: 16px; line-height: 2;"></div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button style="background: #555;" onclick="closeModal('wealth-modal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="srd-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box" style="max-width: 600px;">
+            <h2>📖 D&D SRD Magic Items</h2>
+            <input type="text" id="srd-search-input" placeholder="Search SRD (e.g., Bag of Holding)..." oninput="renderSrdList()">
+            <div id="srd-list-container" style="max-height: 350px; overflow-y: auto; margin-top: 10px; border: 1px solid #444; border-radius: 4px; background: #1e1e24;"></div>
+            <div style="text-align: right; margin-top: 15px;"><button style="background: #555;" onclick="closeModal('srd-modal')">Cancel</button></div>
+        </div>
+    </div>
+
+    <div id="setup-screen" class="modal-overlay" style="display: none;">
+        <div class="modal-box">
+            <h2>⚙️ Google Sheets Cloud Setup</h2>
+            <button id="toggle-instructions-btn" class="add-btn" style="display: none; margin-bottom: 15px; width: 100%;" onclick="toggleInstructions()">📖 Show Setup Instructions</button>
+
+            <div id="setup-instructions-container">
+                <p style="font-size: 13px; color: #ccc;">To save data, this app connects to a Google Sheet using Google Apps Script.</p>
+                <ol class="setup-steps">
+                    <li>Create a new <a href="https://sheets.new" target="_blank" style="color:#3498db;">Google Sheet</a>.</li>
+                    <li>At the bottom left, add a new tab and name it exactly: <strong>Players</strong>.</li>
+                    <li>In the <strong>Players</strong> tab, set up your roster starting in Row 2. <br>
+                        <em>Col A: Player Name | Col B: PIN | Col C: Character Name</em>
+                    </li>
+                    <li>In the top menu, click <strong>Extensions > Apps Script</strong>.</li>
+                    <li>Delete any default code and paste the script below. <strong style="color:#e67e22;">(Update required for V2!)</strong></li>
+                    <li>Click <strong>Deploy > New deployment</strong> (or Manage Deployments > Edit > New Version).</li>
+                    <li>Select type <strong>Web app</strong>. Set 'Execute as' to <strong>Me</strong> and 'Who has access' to <strong>Anyone</strong>.</li>
+                    <li>Click Deploy, Authorize the permissions, and copy the generated <strong>Web app URL</strong>.</li>
+                </ol>
+
+                <div style="position: relative;">
+                    <button onclick="copyScriptCode()" style="position: absolute; top: 10px; right: 10px; font-size: 11px; padding: 4px 8px;">📋 Copy Code</button>
+                    <pre class="code-block" id="app-script-code">
+const SHEET_NAME = "LootData"; 
+const PLAYER_SHEET = "Players"; 
+const FOLDER_NAME = "Party_Loot_Images";
+const BACKEND_VERSION = "2.0";
+
+function getOrCreateFolder() { 
+  const f = DriveApp.getFoldersByName(FOLDER_NAME); 
+  return f.hasNext() ? f.next() : DriveApp.createFolder(FOLDER_NAME); 
+}
+
+function doGet(e) {
+  try { 
+    const ss = SpreadsheetApp.getActive();
+    let s = ss.getSheetByName(SHEET_NAME); 
+    let p = ss.getSheetByName(PLAYER_SHEET);
+    
+    let items = [];
+    if (s) {
+      let data = s.getDataRange().getValues();
+      if (data.length === 1 && typeof data[0][0] === 'string' && data[0][0].trim().startsWith('[')) {
+        items = JSON.parse(data[0][0]); 
+      } else if (data.length > 1) {
+        let headers = data[0];
+        for (let i = 1; i < data.length; i++) {
+          let item = {};
+          headers.forEach((h, index) => { item[h] = data[i][index]; });
+          items.push(item);
+        }
+      }
+    }
+    
+    let players = [];
+    if (p) {
+      let data = p.getDataRange().getValues();
+      for(let i=1; i < data.length; i++) { 
+        if(data[i][0] && data[i][1]) {
+          players.push({
+            name: data[i][0].toString(), pin: data[i][1].toString(), character: data[i][2] ? data[i][2].toString() : ""
+          });
+        }
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({backendVersion: BACKEND_VERSION, items: items, players: players})).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) { 
+    return ContentService.createTextOutput(JSON.stringify({backendVersion: BACKEND_VERSION, items: [], players: []})).setMimeType(ContentService.MimeType.JSON); 
+  }
+}
+
+function doPost(e) {
+  try { 
+    const p = JSON.parse(e.postData.contents);
+    if (p.action === 'uploadImage') {
+      const f = getOrCreateFolder(), b = Utilities.newBlob(Utilities.base64Decode(p.base64), p.mimeType, p.fileName);
+      const file = f.createFile(b); file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      return ContentService.createTextOutput(JSON.stringify({ url: "https://drive.google.com/uc?id=" + file.getId() })).setMimeType(ContentService.MimeType.JSON);
+    }
+    if (p.action === 'saveData') {
+      let s = SpreadsheetApp.getActive().getSheetByName(SHEET_NAME); 
+      if (!s) s = SpreadsheetApp.getActive().insertSheet(SHEET_NAME);
+      s.clear(); 
+      if (p.data && p.data.length > 0) {
+        let headers = ["id", "cardType", "apparentName", "trueName", "imageUrl", "owner", "storageLocation", "weight", "quantity", "maxQuantity", "hasQuantity", "isConsumable", "isEquipped", "requiresAttunement", "isAttuned", "isIdentified", "description", "isCurseRevealed", "curseDetectDC", "curseDetails", "secretKeeper", "cardSize", "rarity", "wealthData", "isCollapsed"];
+        let rows = [headers];
+        p.data.forEach(item => { 
+          let rowData = headers.map(h => {
+            let val = item[h];
+            if (val === undefined || val === null) return "";
+            if (typeof val === 'boolean') return val ? "TRUE" : "FALSE";
+            if (typeof val === 'object') return JSON.stringify(val);
+            return val;
+          });
+          rows.push(rowData); 
+        });
+        s.getRange(1, 1, rows.length, headers.length).setValues(rows);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch (err) { 
+    return ContentService.createTextOutput(JSON.stringify({ error: err.toString() })).setMimeType(ContentService.MimeType.JSON); 
+  }
+}
+</pre>
+                </div>
+            </div>
+            
+            <div id="setup-input-view" style="margin-top: 15px; border-top: 1px dashed #555; padding-top: 15px;">
+                <label style="font-size: 13px; font-weight: bold; color: #fff;">Paste Your Web App URL Here:</label>
+                <input type="text" id="script-url-input" placeholder="https://script.google.com/macros/s/...">
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+                    <button style="background: #555;" onclick="closeSetup()">Close</button>
+                    <button class="add-btn" onclick="saveSetup()">Save & Sync</button>
+                </div>
+            </div>
+
+            <div id="setup-configured-view" style="display: none; text-align: center; margin-top: 20px; border-top: 1px dashed #555; padding-top: 20px;">
+                <h3 style="color: #2ecc71; margin: 0 0 10px 0;">✅ Connected to Cloud</h3>
+                <p style="font-size: 13px; color: #ccc; margin-bottom: 15px;">Have players scan this QR code or use the link below to join!</p>
+                <img id="qr-code-img" src="" alt="QR Code" style="margin: 0 auto; background: white; padding: 10px; border-radius: 8px; width: 150px; height: 150px;">
+                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <button onclick="copyJoinLink()" style="background: #3498db;">🔗 Copy Join Link</button>
+                    <button id="btn-disconnect" style="background: #e74c3c;" onclick="confirmDisconnect()">Disconnect App</button>
+                    <button style="background: #555;" onclick="closeSetup()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-workspace" style="display: flex; flex-direction: column; min-height: 100vh;">
+        <header>
+            <h1 id="main-page-title">
+                Item Tracker
+                <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/blob/main/CHANGELOG.md" target="_blank" style="color: #f39c12; font-size: 12px; margin-left: 10px; text-decoration: none;">✨ What's New?</a>
+                <span id="github-live-links"></span>
+            </h1>
+            <div class="header-controls">
+                <div class="user-info" id="user-info-display" style="display: none;">Logged in as: <span id="display-user-name"></span></div>
+                
+                <div class="view-toggles">
+                    <button id="view-grid-btn" class="active" onclick="toggleViewMode('grid')">🗂️ Grid</button>
+                    <button id="view-table-btn" onclick="toggleViewMode('table')">📄 Table</button>
+                    <button id="view-print-btn" onclick="toggleViewMode('print')">🖨️ Print</button>
+                </div>
+
+                <div class="dropdown" id="add-dropdown-container" style="display: none;">
+                    <button class="add-btn" onclick="toggleDropdown(event, 'add-menu-dropdown')">+ Add New... ▼</button>
+                    <div id="add-menu-dropdown" class="dropdown-content">
+                        <a href="#" id="dropdown-srd" onclick="openModal('srd-modal'); return false;" style="color: #2ecc71;">📖 SRD Magic Item</a>
+                        <a href="#" onclick="addNewCard('Item'); return false;">🗡️ Standard Item</a>
+                        <a href="#" onclick="addNewCard('Treasure'); return false;" style="color: #f1c40f;">💎 Treasure / Wealth</a>
+                        <a href="#" onclick="addNewCard('Transcription'); return false;" style="color: #9b59b6;">📜 Transcription Supplies</a>
+                        <a href="#" onclick="addNewCard('Note'); return false;" style="color: #95a5a6;">📝 Note / Clue</a>
+                        <a href="#" id="dropdown-quest" onclick="addNewCard('Quest'); return false;" style="color: #3498db;">🗺️ Quest (DM Only)</a>
+                    </div>
+                </div>
+                
+                <button id="switch-mode-btn" style="display: none; background: #9b59b6;" onclick="switchRole()">👁️ DM View</button>
+                <button id="login-btn-header" class="dm-toggle-btn" onclick="openModal('login-modal')">👤 Log In</button>
+                <button id="live-sync-btn" style="background: #555;" onclick="toggleLiveSync()">🔄 Live Sync: OFF</button>
+                <button id="logout-btn-header" style="background: #555; display: none;" onclick="handleLogout()">Logout</button>
+                <button class="setup-btn" id="setup-btn-header" onclick="openSetup()">⚙️ Setup</button>
+            </div>
+        </header>
+
+        <div id="dm-toolbar" class="dm-toolbar" style="display: none;">
+            <span class="dm-toolbar-label">DM Tools:</span>
+            <button class="potion-btn" onclick="quickAddPotion('Healing')">🧪 Potion of Healing</button>
+            <button class="potion-btn" onclick="quickAddPotion('Greater')">🧪 Greater Healing</button>
+            <button class="potion-btn" onclick="quickAddPotion('Superior')">🧪 Superior Healing</button>
+            <button class="potion-btn" onclick="quickAddPotion('Supreme')">🧪 Supreme Healing</button>
+            <div style="flex-grow: 1;"></div>
+            <button class="save-btn" style="font-size: 11px;" onclick="calculatePartyWealth()">💎 Party Wealth</button>
+            <button class="save-btn" style="font-size: 11px;" onclick="calculateEncumbrance()">⚖️ Encumbrance</button>
+        </div>
+
+        <div class="search-bar-container">
+            <input type="text" id="search-input" placeholder="🔍 Search items, notes, quests..." oninput="handleSearch(this.value)">
+            <button id="print-execute-btn" style="display: none; background: #2ecc71;" onclick="window.print()">🖨️ Print Selected Cards</button>
+        </div>
+
+        <main id="loot-grid" class="grid-view"></main>
+    </div>
+
+    <script>
+        const GITHUB_REPO = "YOUR_USERNAME/YOUR_REPO"; 
+        const CAMPAIGN_KEY = "SecretDragonHoard2026"; 
+        const REQUIRED_BACKEND_VERSION = "2.0";
+
+        // --- BUILD INFO START ---
+        const BUILD_INFO = {
+            version: "Local Build",
+            repo: "LOCAL"
+        };
+        // --- BUILD INFO END ---
+
+        const state = {
+            currentUser: null, isDmMode: false, scriptUrl: "", searchQuery: "",
+            lastCloudHash: "", players: [], items: [],
+            viewMode: 'grid', // 'grid', 'table', 'print'
+            liveSyncInterval: null
+        };
+
+        const STORAGE_LOCATIONS = ["Equipped/Worn", "Backpack", "Belt", "Bandolier", "Pouch", "Hidden"];
+        const RARITY_DCS = { "Mundane": "10", "Common": "10", "Uncommon": "12", "Rare": "15", "Epic": "17", "Legendary": "19", "Artifact": "22" };
+        const RARITY_OPTIONS = Object.keys(RARITY_DCS);
+        const CARD_SIZES = ["Standard", "Mini", "Medium", "Large", "Half Page", "Full Page"];
+
+        // --- Demo Data ---
+        function loadDemoData() {
+            state.players = [
+                { name: "Hank", pin: "1111", character: "Ranger" }, { name: "Eric", pin: "2222", character: "Cavalier" },
+                { name: "Diana", pin: "3333", character: "Acrobat" }, { name: "Presto", pin: "4444", character: "Magician" },
+                { name: "Sheila", pin: "5555", character: "Thief" }, { name: "Bobby", pin: "6666", character: "Barbarian" },
+                { name: "Dungeon Master", pin: "7777", character: "DM" }
+            ];
+            state.items = [
+                {
+                    id: 1, cardType: "Quest", isIdentified: true, apparentName: "Return Home", trueName: "Return Home", isCollapsed: false,
+                    owner: "Party Stash", cardSize: "Full Page", description: "Find a portal back to the amusement park and escape the Realm of Dungeons & Dragons.", secretKeeper: "Dungeon Master", curseDetails: "The Dungeon Master constantly gives vague riddles instead of actual directions."
+                },
+                {
+                    id: 2, cardType: "Quest", isIdentified: true, apparentName: "Defeat Venger", trueName: "Defeat Venger", isCollapsed: true,
+                    owner: "Party Stash", cardSize: "Half Page", description: "Venger, the Force of Evil, seeks the magical weapons of the party to conquer the realm.", secretKeeper: "Dungeon Master", curseDetails: "Venger rides a Nightmare and has powerful spellcasting abilities."
+                },
+                {
+                    id: 3, cardType: "Item", isIdentified: true, apparentName: "Glowing Longbow", trueName: "Energy Bow", hasQuantity: false, quantity: 1, maxQuantity: "", isConsumable: false,
+                    imageUrl: "", weight: "2.5 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, storageLocation: "Equipped/Worn", owner: "Hank", cardSize: "Standard", rarity: "Epic",
+                    secretKeeper: "Dungeon Master", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
+                    description: "Fires arrows of pure magical energy. Can be used to attack, create light, or form solid barriers and ropes."
+                },
+                {
+                    id: 4, cardType: "Item", isIdentified: true, apparentName: "Green Wizard Hat", trueName: "Hat of Many Spells", hasQuantity: true, quantity: 4, maxQuantity: "7", isConsumable: false,
+                    imageUrl: "", weight: "1 lbs", requiresAttunement: true, isAttuned: true, isEquipped: true, storageLocation: "Equipped/Worn", owner: "Presto", cardSize: "Standard", rarity: "Rare",
+                    secretKeeper: "Dungeon Master", isCurseRevealed: true, curseDetectDC: "14", isEditing: false,
+                    description: "A magical hat that allows the wearer to pull out magical effects and objects.",
+                    curseDetails: "The magic is highly unpredictable. Often produces comedic or mildly dangerous results instead of the desired spell."
+                },
+                {
+                    id: 5, cardType: "Treasure", isIdentified: true, apparentName: "Dragon Hoard", trueName: "Dragon Hoard", hasQuantity: false,
+                    owner: "Party Stash", cardSize: "Medium", rarity: "Mundane", storageLocation: "Hidden", wealthData: { pp:10, gp:540, ep:0, sp:200, cp:0, gems: "1x Flawless Diamond (1000gp)" }, isEditing: false
+                },
+                {
+                    id: 6, cardType: "Transcription", isIdentified: true, apparentName: "Magical Ink & Paper", trueName: "Magical Ink & Paper", hasQuantity: true, quantity: 3, maxQuantity: "", isConsumable: true,
+                    imageUrl: "", weight: "0.2 lbs", requiresAttunement: false, isAttuned: false, isEquipped: false, storageLocation: "Backpack", owner: "Presto", cardSize: "Mini", rarity: "Uncommon",
+                    secretKeeper: "Shared", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
+                    description: "Contains supplies to transcribe spells. 1 Charge = 1 Spell Level (50gp value)."
+                },
+                {
+                    id: 7, cardType: "Note", isIdentified: true, apparentName: "Mysterious Map Fragment", trueName: "Mysterious Map Fragment", hasQuantity: false,
+                    imageUrl: "", weight: "-", requiresAttunement: false, isAttuned: false, isEquipped: false, storageLocation: "Pouch", owner: "Sheila", cardSize: "Half Page", rarity: "Mundane",
+                    secretKeeper: "Shared", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
+                    description: "A torn piece of parchment showing the path through the Bog of Sorrows. There's a warning scribbled in the margin: 'Beware the Bullywug King!'"
+                }
+            ];
+        }
+
+        window.onload = () => {
+            fetchLiveGitHubInfo(); 
+            const urlParams = new URLSearchParams(window.location.search);
+            const joinCode = urlParams.get('j');
+            if (joinCode) {
+                try {
+                    let decodedId = atob(joinCode);
+                    state.scriptUrl = "https://script.google.com/macros/s/" + decodedId + "/exec";
+                    localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
+                    window.history.replaceState({}, document.title, window.location.pathname); 
+                } catch(e) {}
+            } else { state.scriptUrl = localStorage.getItem('lootTrackerScriptUrl') || ""; }
+            document.getElementById('script-url-input').value = state.scriptUrl;
+            if(state.scriptUrl) { loadFromCloud(); } else { loadDemoData(); renderAll(); }
+        };
+
+        // --- Notifications, Modals & Dropdowns ---
+        function showToast(msg, type='error') {
+            const toast = document.getElementById('toast-notification');
+            toast.innerText = msg; toast.className = `show ${type}`;
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function getPlayerDisplayName(p) { return p ? (p.character ? `${p.name} (${p.character})` : p.name) : null; }
+        function parseWeight(str, qty) { const n = parseFloat(String(str).replace(/[^\d.]/g, '')); return isNaN(n) ? 0 : n * (qty || 1); }
+        function parseWealth(data) {
+            if (!data) return {};
+            if (typeof data === 'object') return data;
+            try { return JSON.parse(data); } catch(e) { return {}; }
+        }
+
+        function toggleDropdown(event, id) {
+            event.stopPropagation();
+            document.getElementById(id).classList.toggle("show");
+        }
+
+        window.onclick = function(event) {
+            if (!event.target.matches('.dropdown-content') && !event.target.closest('.dropdown-content') && !event.target.matches('.add-btn')) {
+                var dropdowns = document.getElementsByClassName("dropdown-content");
+                for (var i = 0; i < dropdowns.length; i++) {
+                    if (dropdowns[i].classList.contains('show')) dropdowns[i].classList.remove('show');
+                }
+            }
+        }
+
+        // --- 2-Step Confirmations ---
+        function confirmDelete(id) {
+            const btn = document.getElementById('del-btn-' + id);
+            if (!btn) return;
+            if (btn.dataset.confirming === "true") {
+                removeItem(id);
+            } else {
+                btn.dataset.confirming = "true"; btn.innerText = "Sure?"; btn.style.backgroundColor = "#8b0000";
+                setTimeout(() => {
+                    if (document.getElementById('del-btn-' + id)) {
+                        btn.dataset.confirming = "false"; btn.innerText = "Delete"; btn.style.backgroundColor = "#e74c3c";
+                    }
+                }, 3000);
+            }
+        }
+
+        function confirmDiscard(id) {
+            const btn = document.getElementById('discard-btn-' + id);
+            if (!btn) return;
+            if (btn.dataset.confirming === "true") {
+                discardEdit(id);
+            } else {
+                btn.dataset.confirming = "true"; btn.innerText = "Sure?"; btn.style.backgroundColor = "#e67e22";
+                setTimeout(() => {
+                    if (document.getElementById('discard-btn-' + id)) {
+                        btn.dataset.confirming = "false"; btn.innerText = "Discard"; btn.style.backgroundColor = "#7f8c8d";
+                    }
+                }, 3000);
+            }
+        }
+
+        function confirmDisconnect() {
+            const btn = document.getElementById('btn-disconnect');
+            if (btn.dataset.confirming === "true") {
+                disconnectCloud();
+            } else {
+                btn.dataset.confirming = "true"; btn.innerText = "Are you sure?"; btn.style.backgroundColor = "#8b0000";
+                setTimeout(() => {
+                    if (document.getElementById('btn-disconnect')) {
+                        btn.dataset.confirming = "false"; btn.innerText = "Disconnect App"; btn.style.backgroundColor = "#e74c3c";
+                    }
+                }, 3000);
+            }
+        }
+
+        async function fetchLiveGitHubInfo() {
+            if (GITHUB_REPO === "YOUR_USERNAME/YOUR_REPO" || BUILD_INFO.repo !== "LOCAL") return;
+            try {
+                const [commitRes, tagRes] = await Promise.all([fetch(`https://api.github.com/repos/${GITHUB_REPO}/commits/main`), fetch(`https://api.github.com/repos/${GITHUB_REPO}/tags`)]);
+                const commitData = await commitRes.json(); const tagData = await tagRes.json();
+                const shortSha = commitData.sha ? commitData.sha.substring(0, 7) : "dev";
+                const latestTag = tagData.length > 0 ? tagData[0].name : "Live Build";
+                document.getElementById('github-live-links').innerHTML = `
+                    <div class="github-links" style="display: inline-flex; gap: 5px; font-size: 11px; margin-left: 15px;">
+                        <a href="https://github.com/${GITHUB_REPO}/releases/tag/${latestTag}" target="_blank" style="color: #ccc; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px;">🐙 ${latestTag}</a>
+                        <a href="https://github.com/${GITHUB_REPO}/commit/${commitData.sha}" target="_blank" style="color: #aaa; text-decoration: none; background: #1a1a20; border: 1px solid #444; padding: 4px 8px; border-radius: 4px;">📄 ${shortSha}</a>
+                    </div>`;
+            } catch (e) {}
+        }
+
+        // --- Setup Logic ---
+        function openSetup() { 
+            document.getElementById('setup-instructions-container').style.display = state.scriptUrl ? 'none' : 'block';
+            document.getElementById('toggle-instructions-btn').style.display = state.scriptUrl ? 'block' : 'none';
+            document.getElementById('setup-configured-view').style.display = state.scriptUrl ? 'block' : 'none';
+            document.getElementById('setup-input-view').style.display = state.scriptUrl ? 'none' : 'block';
+            if (state.scriptUrl) {
+                let encodedCode = btoa(state.scriptUrl.match(/\/s\/([a-zA-Z0-9_-]+)\//)?.[1] || state.scriptUrl);
+                document.getElementById('qr-code-img').src = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" + encodeURIComponent(window.location.href.split('?')[0] + "?j=" + encodedCode);
+            }
+            openModal('setup-screen');
+        }
+        function toggleInstructions() {
+            const c = document.getElementById('setup-instructions-container');
+            c.style.display = c.style.display === 'none' ? 'block' : 'none';
+        }
+        function saveSetup() {
+            state.scriptUrl = document.getElementById('script-url-input').value.trim();
+            localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl); closeModal('setup-screen');
+            state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
+            if (state.scriptUrl) loadFromCloud(); else { loadDemoData(); renderAll(); }
+        }
+        function disconnectCloud() {
+            state.scriptUrl = ""; localStorage.removeItem('lootTrackerScriptUrl');
+            document.getElementById('script-url-input').value = ""; closeModal('setup-screen');
+            state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
+            loadDemoData(); renderAll();
+            showToast("Disconnected from Cloud.", "success");
+        }
+        function copyJoinLink() {
+            let encodedCode = btoa(state.scriptUrl.match(/\/s\/([a-zA-Z0-9_-]+)\//)?.[1] || state.scriptUrl);
+            navigator.clipboard.writeText(window.location.href.split('?')[0] + "?j=" + encodedCode);
+            showToast("Join Link copied!", "success");
+        }
+        function copyScriptCode() { navigator.clipboard.writeText(document.getElementById('app-script-code').innerText); showToast("Code copied!", "success"); }
+
+        // --- Login & Roles ---
+        function openLoginModal() {
+            if (state.players.length === 0) { showToast("No players found. Please Sync Data.", "error"); openSetup(); return; }
+            const select = document.getElementById('login-name'); select.innerHTML = '';
+            state.players.forEach(p => { 
+                select.innerHTML += `<option value="${p.name}">${p.character ? `${p.name} (${p.character})` : p.name}</option>`; 
+            });
+            document.getElementById('login-pin').value = ''; openModal('login-modal');
+        }
+        function submitLogin(asDm) {
+            const name = document.getElementById('login-name').value; const pin = document.getElementById('login-pin').value;
+            const user = state.players.find(p => p.name === name && p.pin === pin);
+            if (user) { state.currentUser = user; state.isDmMode = asDm; closeModal('login-modal'); renderAll(); showToast(`Welcome, ${name}!`, "success");} 
+            else showToast("Incorrect PIN.", "error");
+        }
+        function handleLogout() { state.currentUser = null; state.isDmMode = false; state.items.forEach(i => i.isEditing = false); renderAll(); showToast("Logged out.", "success");}
+        function switchRole() {
+            if (state.isDmMode) { 
+                state.isDmMode = false; state.items.forEach(i => i.isEditing = false); renderAll(); 
+            } else {
+                document.getElementById('unlock-dm-pin').value = '';
+                openModal('unlock-dm-modal');
+            }
+        }
+        function submitUnlockDm() {
+            const pin = document.getElementById('unlock-dm-pin').value;
+            if (pin === state.currentUser.pin) { state.isDmMode = true; closeModal('unlock-dm-modal'); renderAll(); showToast("DM Tools Unlocked", "success");}
+            else showToast("Incorrect PIN", "error");
+        }
+
+        // --- View Toggles ---
+        function toggleViewMode(mode) {
+            state.viewMode = mode;
+            document.querySelectorAll('.view-toggles button').forEach(b => b.classList.remove('active'));
+            document.getElementById(`view-${mode}-btn`).classList.add('active');
+            
+            const main = document.getElementById('loot-grid');
+            main.className = mode === 'table' ? 'table-view' : 'grid-view';
+            
+            if (mode === 'print') {
+                document.body.classList.add('print-mode-active');
+                document.getElementById('print-execute-btn').style.display = 'block';
+            } else {
+                document.body.classList.remove('print-mode-active');
+                document.getElementById('print-execute-btn').style.display = 'none';
+            }
+            renderAll();
+        }
+
+        // --- Cloud & AutoSave ---
+        let autoSaveTimeout;
+        function triggerAutoSave() {
+            clearTimeout(autoSaveTimeout);
+            const btn = document.getElementById('btn-load'); if (btn) btn.innerText = "⏳ Autosaving...";
+            autoSaveTimeout = setTimeout(() => saveToCloud(true, true), 1500);
+        }
+
+        async function saveToCloud(silent = false, skipRender = false) {
+            if (!state.scriptUrl) return; 
+            clearTimeout(autoSaveTimeout); 
+            const btn = document.getElementById('btn-load');
+            if (!silent && btn) { btn.innerText = "⏳ Saving..."; btn.disabled = true; }
+
+            const secureData = state.items.map(item => {
+                let outTrueName = item.trueName || ""; let outDesc = item.description || "";
+                let outCurseDC = item.curseDetectDC || ""; let outCurseDetails = item.curseDetails || "";
+                const isKeeper = state.isDmMode && state.currentUser && (item.secretKeeper === "Shared" || state.currentUser.name === item.secretKeeper);
+                const encKey = item.secretKeeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : (state.currentUser ? CAMPAIGN_KEY + "_" + state.currentUser.pin : "");
+
+                if (!item.isIdentified && isKeeper) {
+                    if (!outTrueName.startsWith("ENC::")) outTrueName = "ENC::" + CryptoJS.AES.encrypt(outTrueName, encKey).toString();
+                    if (!outDesc.startsWith("ENC::")) outDesc = "ENC::" + CryptoJS.AES.encrypt(outDesc, encKey).toString();
+                }
+                if (!item.isCurseRevealed && isKeeper) {
+                    if (!outCurseDC.startsWith("ENC::")) outCurseDC = "ENC::" + CryptoJS.AES.encrypt(outCurseDC, encKey).toString();
+                    if (!outCurseDetails.startsWith("ENC::")) outCurseDetails = "ENC::" + CryptoJS.AES.encrypt(outCurseDetails, encKey).toString();
+                }
+
+                return {
+                    id: item.id, cardType: item.cardType || "Item", apparentName: item.apparentName || "", trueName: outTrueName, imageUrl: item.imageUrl || "",
+                    owner: item.owner || "Party Stash", storageLocation: item.storageLocation || "Backpack", weight: item.weight || "-", 
+                    quantity: item.quantity || 0, maxQuantity: item.maxQuantity || "", hasQuantity: item.hasQuantity ? true : false, 
+                    isConsumable: item.isConsumable ? true : false, isEquipped: item.isEquipped ? true : false, requiresAttunement: item.requiresAttunement ? true : false, 
+                    isAttuned: item.isAttuned ? true : false, isIdentified: item.isIdentified ? true : false, description: outDesc, 
+                    isCurseRevealed: item.isCurseRevealed ? true : false, curseDetectDC: outCurseDC, curseDetails: outCurseDetails, 
+                    secretKeeper: item.secretKeeper || "", cardSize: item.cardSize || "Standard", rarity: item.rarity || "Mundane",
+                    wealthData: item.wealthData || {}, isCollapsed: item.isCollapsed ? true : false
+                };
+            });
+
+            try {
+                await fetch(state.scriptUrl, { method: 'POST', body: JSON.stringify({ action: 'saveData', data: secureData }) });
+                if (!silent) state.items.forEach(i => i.isEditing = false);
+            } catch(e) { console.error("Save failed.", e); }
+            
+            if (btn) { btn.innerText = "📥 Sync Data"; btn.disabled = false; }
+            if (!skipRender) renderAll();
+        }
+
+        async function loadFromCloud(silent = false) {
+            if (!state.scriptUrl) return; 
+            const btn = document.getElementById('btn-load');
+            if (!silent && btn) { btn.innerText = "⏳ Syncing..."; btn.disabled = true; }
+
+            try {
+                const response = await fetch(state.scriptUrl);
+                const data = await response.json();
+                
+                if (data.backendVersion !== REQUIRED_BACKEND_VERSION) {
+                    if (state.liveSyncInterval) toggleLiveSync(); 
+                    openModal('db-upgrade-modal');
+                    if (btn) { btn.innerText = "⚠️ Upgrade Required"; btn.disabled = false; }
+                    return; 
+                }
+
+                if (data.players) state.players = data.players;
+                if (data.items && data.items.length > 0) {
+                    const newDataHash = JSON.stringify(data.items);
+                    if (silent && newDataHash === state.lastCloudHash) return; 
+                    state.lastCloudHash = newDataHash;
+
+                    state.items = data.items.map(item => ({
+                        ...item,
+                        quantity: parseInt(item.quantity) || 0,
+                        hasQuantity: String(item.hasQuantity).toLowerCase() === 'true',
+                        isConsumable: String(item.isConsumable).toLowerCase() === 'true',
+                        isEquipped: String(item.isEquipped).toLowerCase() === 'true',
+                        requiresAttunement: String(item.requiresAttunement).toLowerCase() === 'true',
+                        isAttuned: String(item.isAttuned).toLowerCase() === 'true',
+                        isIdentified: String(item.isIdentified).toLowerCase() === 'true',
+                        isCurseRevealed: String(item.isCurseRevealed).toLowerCase() === 'true',
+                        isCollapsed: String(item.isCollapsed).toLowerCase() === 'true',
+                        wealthData: parseWealth(item.wealthData)
+                    }));
+                } else { state.items = []; }
+            } catch(e) { console.error("Load error:", e); }
+            
+            if (!silent && btn) { btn.innerText = "📥 Sync Data"; btn.disabled = false; }
+            renderAll();
+        }
+
+        function toggleLiveSync() {
+            if (!state.scriptUrl) return showToast("Please complete Cloud Setup first!", "error");
+            const btn = document.getElementById('live-sync-btn');
+            if (state.liveSyncInterval) {
+                clearInterval(state.liveSyncInterval); state.liveSyncInterval = null;
+                if (btn) { btn.innerHTML = '🔄 Live Sync: OFF'; btn.style.background = '#555'; }
+            } else {
+                state.liveSyncInterval = setInterval(() => { if (!state.items.some(i => i.isEditing)) loadFromCloud(true); }, 15000);
+                if (btn) { btn.innerHTML = '🔄 Live Sync: ON'; btn.style.background = '#27ae60'; }
+                loadFromCloud(true); 
+            }
+        }
+
+        // --- Cryptography ---
+        function getDisplayText(text, keeper, isPub = false) {
+            if (!text) return ""; if (isPub && !text.startsWith("ENC::")) return text;
+            const canView = state.isDmMode && state.currentUser && (keeper === "Shared" || state.currentUser.name === keeper);
+            if (!text.startsWith("ENC::")) return (!canView && !isPub) ? `🔒 [Secret]` : text;
+            if (!canView && !isPub) return `🔒 [Secret]`;
+            try { return CryptoJS.AES.decrypt(text.replace("ENC::", ""), keeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin).toString(CryptoJS.enc.Utf8) || `🔒 [Error]`; } catch(e) { return `🔒 [Error]`; }
+        }
+        function getEditableText(text, keeper, isPub = false) {
+            if (!text) return ""; if (isPub && !text.startsWith("ENC::")) return text;
+            const canView = state.currentUser && (keeper === "Shared" || state.currentUser.name === keeper);
+            if (!text.startsWith("ENC::")) return (!canView && !isPub) ? `🔒 Encrypted` : text;
+            if (!canView && !isPub) return `🔒 Encrypted`;
+            try { return CryptoJS.AES.decrypt(text.replace("ENC::", ""), keeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin).toString(CryptoJS.enc.Utf8); } catch(e) { return ""; }
+        }
+
+        // --- Card Actions & Editing ---
+        function addNewCard(type) {
+            if (type === 'Quest' && !state.isDmMode) return;
+            
+            const d = document.getElementById('add-menu-dropdown'); if(d) d.classList.remove('show');
+            
+            let newItem = {
+                id: Date.now(), cardType: type, apparentName: `New ${type}`, trueName: "", quantity: 1, maxQuantity: "",
+                hasQuantity: false, isConsumable: false, imageUrl: "", weight: "-", description: "", requiresAttunement: false, 
+                isAttuned: false, storageLocation: "Backpack", isEquipped: false, owner: state.currentUser ? state.currentUser.name : "Party Stash", 
+                secretKeeper: state.currentUser ? state.currentUser.name : "Shared", cardSize: "Standard", rarity: "Mundane",
+                isIdentified: type !== 'Item', isCurseRevealed: false, curseDetectDC: "10", curseDetails: "", isEditing: true,
+                wealthData: {pp:0, gp:0, ep:0, sp:0, cp:0, gems:""}, isCollapsed: false
+            };
+
+            if (type === 'Treasure') { newItem.apparentName = "Pouch of Wealth"; }
+            if (type === 'Note') { newItem.apparentName = "Mysterious Note"; newItem.cardSize = "Half Page"; }
+            if (type === 'Quest') { newItem.apparentName = "New Quest"; newItem.cardSize = "Full Page"; newItem.owner = "Party Stash"; }
+            if (type === 'Transcription') { 
+                newItem.apparentName = "Magical Ink & Paper"; newItem.hasQuantity = true; newItem.isConsumable = true; 
+                newItem.description = "Contains supplies to transcribe spells. 1 Charge = 1 Spell Level (50gp value)."; 
+            }
+
+            newItem._backup = JSON.stringify(newItem); 
+            state.items.unshift(newItem);
+            renderAll(); triggerAutoSave();
+        }
+
+        function quickAddPotion(type) {
+            let desc = "Regain HP when consumed. ";
+            let trueName = type === 'Healing' ? 'Potion of Healing' : `Potion of ${type} Healing`;
+            let rarity = "Common";
+            if(type === 'Healing') { desc += "2d4 + 2 HP."; }
+            if(type === 'Greater') { desc += "4d4 + 4 HP."; rarity = "Uncommon"; }
+            if(type === 'Superior') { desc += "8d4 + 8 HP."; rarity = "Rare"; }
+            if(type === 'Supreme') { desc += "10d4 + 20 HP."; rarity = "Epic"; }
+
+            state.items.unshift({
+                id: Date.now(), cardType: "Item", isIdentified: true, apparentName: "Glass Potion Bottle", trueName: trueName, 
+                hasQuantity: true, quantity: 1, maxQuantity: "", isConsumable: true, storageLocation: "Pouch", weight: "0.5 lbs", description: desc, 
+                cardSize: "Mini", rarity: rarity, owner: "Party Stash", secretKeeper: state.currentUser.name, isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false 
+            });
+            renderAll(); triggerAutoSave();
+        }
+
+        function updateItem(id, field, value) {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item) { item[field] = value; triggerAutoSave(); renderAll(); }
+        }
+        function updateWealth(id, coin, value) {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item) { item.wealthData[coin] = value; triggerAutoSave(); renderAll(); }
+        }
+        function updateRarity(id, value) {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item) {
+                item.rarity = value;
+                if (!item.curseDetectDC) item.curseDetectDC = RARITY_DCS[value] || "";
+                triggerAutoSave(); renderAll();
+            }
+        }
+        
+        function toggleEdit(id) { 
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (!item) return;
+            if (!item.isEditing) {
+                item._backup = JSON.stringify(item);
+                item.isEditing = true;
+            } else {
+                delete item._backup;
+                item.isEditing = false;
+                triggerAutoSave();
+            }
+            renderAll(); 
+        }
+
+        function discardEdit(id) {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item && item._backup) {
+                const backup = JSON.parse(item._backup);
+                Object.assign(item, backup);
+                item.isEditing = false;
+                delete item._backup;
+                renderAll();
+                showToast("Changes discarded.", "success");
+            }
+        }
+
+        function toggleProp(id, prop) { updateItem(id, prop, !state.items.find(i => String(i.id) === String(id))?.[prop]); }
+        function changeQty(id, amt) {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item) updateItem(id, 'quantity', Math.max(0, (item.quantity || 0) + amt));
+        }
+
+        function removeItem(id) {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (!item) return;
+            const canDelete = state.isDmMode || (item.owner === state.currentUser?.name && item.isConsumable && item.quantity === 0);
+            if (!canDelete) { showToast("Players can only delete empty consumables.", "error"); return; }
+            state.items = state.items.filter(i => String(i.id) !== String(id)); 
+            renderAll(); triggerAutoSave();
+            showToast("Card deleted.", "success");
+        }
+
+        function makeShared(id) {
+            const item = state.items.find(i => String(i.id) === String(id));
+            if (item && item.secretKeeper === state.currentUser?.name) {
+                item.trueName = getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName;
+                item.description = getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description;
+                item.curseDetectDC = getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC;
+                item.curseDetails = getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails;
+                item.secretKeeper = "Shared"; renderAll(); triggerAutoSave();
+            }
+        }
+
+        // --- Encumbrance & Wealth Calculators ---
+        function calculateEncumbrance() {
+            try {
+                let html = `<table class="encumbrance-table"><tr><th>Character</th><th>Combat Gear</th><th>Backpack</th><th>Coin Weight</th><th>TOTAL</th></tr>`;
+                ["Party Stash", ...state.players.map(p => p.name)].forEach(entity => {
+                    let items = state.items.filter(i => i.owner === entity);
+                    let combat = 0, pack = 0, coins = 0;
+                    items.forEach(i => {
+                        let w = parseWeight(i.weight, i.hasQuantity ? i.quantity : 1);
+                        if (i.cardType === 'Treasure') {
+                            let wd = parseWealth(i.wealthData);
+                            let totalCoins = (parseInt(wd.pp)||0) + (parseInt(wd.gp)||0) + (parseInt(wd.ep)||0) + (parseInt(wd.sp)||0) + (parseInt(wd.cp)||0);
+                            coins += totalCoins / 50; 
+                        } else if (["Equipped/Worn", "Belt", "Bandolier"].includes(i.storageLocation)) { combat += w; } 
+                        else { pack += w; }
+                    });
+                    let total = combat + pack + coins;
+                    if (total > 0) {
+                        const displayName = entity === "Party Stash" ? entity : (getPlayerDisplayName(state.players.find(p=>p.name===entity)) || entity);
+                        html += `<tr><td><strong>${displayName}</strong></td>
+                                 <td>${combat.toFixed(1)} lbs</td><td>${pack.toFixed(1)} lbs</td><td>${coins.toFixed(1)} lbs</td>
+                                 <td style="color:#f1c40f; font-weight:bold;">${total.toFixed(1)} lbs</td></tr>`;
+                    }
+                });
+                document.getElementById('encumbrance-content').innerHTML = html + `</table>`; 
+                openModal('encumbrance-modal');
+            } catch(e) {
+                console.error("Encumbrance error:", e);
+                showToast("Error calculating encumbrance.", "error");
+            }
+        }
+
+        function calculatePartyWealth() {
+            try {
+                let sums = { pp:0, gp:0, ep:0, sp:0, cp:0 };
+                let gemsList = [];
+                state.items.filter(i => i.cardType === 'Treasure').forEach(i => {
+                    let wd = parseWealth(i.wealthData);
+                    sums.pp += parseInt(wd.pp) || 0; sums.gp += parseInt(wd.gp) || 0;
+                    sums.ep += parseInt(wd.ep) || 0; sums.sp += parseInt(wd.sp) || 0;
+                    sums.cp += parseInt(wd.cp) || 0;
+                    if (wd.gems && wd.gems.trim() !== "") gemsList.push(`<em>(${i.owner}):</em> ${wd.gems}`);
+                });
+                let totalGp = (sums.pp * 10) + sums.gp + (sums.ep * 0.5) + (sums.sp * 0.1) + (sums.cp * 0.01);
+                
+                document.getElementById('wealth-content').innerHTML = `
+                    <div style="display:flex; justify-content:space-between; border-bottom:1px solid #555; padding-bottom:10px; margin-bottom:10px;">
+                        <div><strong>Platinum:</strong> ${sums.pp}</div> <div><strong>Gold:</strong> ${sums.gp}</div> <div><strong>Electrum:</strong> ${sums.ep}</div>
+                        <div><strong>Silver:</strong> ${sums.sp}</div> <div><strong>Copper:</strong> ${sums.cp}</div>
+                    </div>
+                    <div style="font-size:24px; color:#2ecc71; text-align:center; font-weight:bold; margin: 20px 0;">Total Value: ${totalGp.toFixed(2)} GP</div>
+                    <div style="font-size:12px; color:#ccc;"><strong>Gems & Art Objects:</strong><br>${gemsList.length > 0 ? gemsList.join('<br>') : 'None recorded.'}</div>
+                `;
+                openModal('wealth-modal');
+            } catch(e) {
+                console.error("Wealth error:", e);
+                showToast("Error calculating wealth.", "error");
+            }
+        }
+
+        // --- Render Engines ---
+        function renderAll() {
+            document.getElementById('setup-btn-header').innerHTML = state.scriptUrl ? `⚙️✅ Setup` : `⚙️ Setup`;
+            document.getElementById('setup-btn-header').className = state.scriptUrl ? 'setup-btn configured' : 'setup-btn';
+            
+            if (state.currentUser) {
+                document.getElementById('login-btn-header').style.display = 'none';
+                document.getElementById('logout-btn-header').style.display = 'block';
+                document.getElementById('user-info-display').style.display = 'block';
+                document.getElementById('display-user-name').innerText = `${getPlayerDisplayName(state.currentUser)} (${state.isDmMode ? 'DM' : 'Player'})`;
+                
+                document.getElementById('add-dropdown-container').style.display = 'inline-block';
+                document.getElementById('dropdown-quest').style.display = state.isDmMode ? 'block' : 'none';
+                document.getElementById('dropdown-srd').style.display = state.isDmMode ? 'block' : 'none';
+                document.getElementById('switch-mode-btn').style.display = 'block';
+                document.getElementById('switch-mode-btn').innerHTML = state.isDmMode ? '👤 Player View' : '👁️ DM View';
+                document.getElementById('switch-mode-btn').style.background = state.isDmMode ? '#e67e22' : '#9b59b6';
+                document.getElementById('dm-toolbar').style.display = state.isDmMode ? 'flex' : 'none';
+            } else {
+                document.getElementById('login-btn-header').style.display = 'block';
+                ['logout-btn-header', 'user-info-display', 'add-dropdown-container', 'switch-mode-btn', 'dm-toolbar'].forEach(id => document.getElementById(id).style.display = 'none');
+            }
+
+            // Ensure every player has a Treasure card (Runs for Demo & Cloud)
+            if (state.players.length > 0) {
+                state.players.forEach(p => {
+                    if (p.character === 'DM' || p.name === 'Party Stash') return;
+                    if (!state.items.some(i => i.cardType === 'Treasure' && i.owner === p.name)) {
+                        let cName = p.character ? p.character : p.name;
+                        state.items.push({
+                            id: Date.now() + Math.random(), cardType: "Treasure", isIdentified: true, apparentName: `${cName} Wealth`, trueName: `${cName} Wealth`,
+                            owner: p.name, storageLocation: "Pouch", secretKeeper: "Shared", cardSize: "Standard", rarity: "Mundane",
+                            wealthData: {pp:0, gp:0, ep:0, sp:0, cp:0, gems:""}, isEditing: false 
+                        });
+                    }
+                });
+            }
+
+            // Filter & Sort
+            let displayItems = state.items.filter(item => {
+                if (item.owner === "DM Stash" && !state.isDmMode) return false; 
+                if (state.searchQuery.trim() === "") return true;
+                let q = state.searchQuery.toLowerCase();
+                let text = (item.apparentName || "") + " " + (item.owner || "");
+                if (item.isIdentified || state.isDmMode) text += " " + (getDisplayText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName) + " " + (getDisplayText(item.description, item.secretKeeper, item.isIdentified) || item.description);
+                if (item.cardType === 'Treasure' && item.wealthData && item.wealthData.gems) text += " " + item.wealthData.gems;
+                return text.toLowerCase().includes(q);
+            });
+
+            displayItems.sort((a, b) => {
+                const typeRank = { 'Quest': 1, 'Item': 2, 'Transcription': 2, 'Treasure': 3, 'Note': 4 };
+                const rankA = typeRank[a.cardType || 'Item'] || 5;
+                const rankB = typeRank[b.cardType || 'Item'] || 5;
+                if (rankA !== rankB) return rankA - rankB;
+
+                const getOwnerRank = (o) => (state.currentUser && o === state.currentUser.name) ? 0 : (o === "Party Stash" ? 1 : 2);
+                if (getOwnerRank(a.owner) !== getOwnerRank(b.owner)) return getOwnerRank(a.owner) - getOwnerRank(b.owner);
+                
+                if (a.owner !== b.owner) return a.owner.localeCompare(b.owner);
+                return (a.apparentName || "").localeCompare(b.apparentName || "");
+            });
+
+            const grid = document.getElementById('loot-grid');
+            if (displayItems.length === 0) { grid.innerHTML = `<div style="text-align:center; padding:50px; color:#777;">No items found.</div>`; return; }
+
+            if (state.viewMode === 'table') renderTable(grid, displayItems);
+            else renderGrid(grid, displayItems);
+        }
+
+        function renderGrid(container, items) {
+            container.innerHTML = '';
+            items.forEach(item => container.appendChild(createCardElement(item)));
+        }
+
+        function renderTable(container, items) {
+            let html = `<table class="data-table"><tr><th>Type</th><th>Name</th><th>Owner</th><th>Location</th><th>Qty</th><th>Weight</th></tr>`;
+            items.forEach(item => {
+                let name = item.apparentName;
+                let isSecret = false;
+                if (item.isIdentified || state.isDmMode) {
+                    name = getDisplayText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName || item.apparentName || "Unknown Item";
+                    if (!item.isIdentified && state.isDmMode) isSecret = true;
+                }
+                
+                let qtyStr = "-";
+                if (item.cardType === 'Treasure') {
+                    let w = parseWealth(item.wealthData); 
+                    qtyStr = `${w.gp||0}g ${w.sp||0}s ${w.cp||0}c`;
+                } else if (item.hasQuantity) {
+                    qtyStr = `${item.quantity}${item.maxQuantity ? '/'+item.maxQuantity : ''}`;
+                }
+
+                const displayOwner = getPlayerDisplayName(state.players.find(p=>p.name===item.owner)) || item.owner;
+
+                html += `<tr onclick="toggleEdit('${item.id}')" class="${isSecret ? 'secret' : ''}">
+                    <td>${item.cardType || 'Item'}</td>
+                    <td>${name} ${isSecret ? '(Secret)' : ''}</td>
+                    <td>${displayOwner}</td>
+                    <td>${item.storageLocation || '-'}</td>
+                    <td>${qtyStr}</td>
+                    <td>${item.weight || '-'}</td>
+                </tr>`;
+            });
+            html += `</table><p style="font-size:11px; color:#aaa; text-align:center; margin-top:10px;">Click any row to open its Edit window in Grid View.</p>`;
+            container.innerHTML = html;
+        }
+
+        // --- Card Generation HTML ---
+        function createCardElement(item) {
+            const card = document.createElement('div');
+            const cardSizeClass = `card-${(item.cardSize || "Standard").toLowerCase().replace(' ', '-')}`;
+            
+            if (item.cardType === 'Quest' && item.isCollapsed) {
+                card.className = `loot-card card-collapsed type-quest`;
+                card.innerHTML = `
+                    <div class="card-content" onclick="toggleProp('${item.id}', 'isCollapsed')">
+                        <span style="font-weight:bold; color:#3498db;">🗺️ ${item.apparentName}</span>
+                        <span style="font-size:12px; color:#aaa;">Click to expand</span>
+                    </div>
+                    ${createEditForm(item)}
+                `;
+                return card;
+            }
+
+            card.className = `loot-card ${cardSizeClass} ${item.isIdentified ? 'identified' : ''} ${item.isCurseRevealed ? 'cursed' : ''} type-${(item.cardType||'item').toLowerCase()}`;
+            const isKeeper = state.isDmMode && state.currentUser && (item.secretKeeper === "Shared" || state.currentUser.name === item.secretKeeper);
+            
+            let titleToShow = item.apparentName || "Unknown Item"; 
+            let subtitleHtml = ""; let descHtml = ""; let curseHtml = "";
+            let plainDC = ""; let plainCurse = ""; let hasCurse = false;
+
+            if (item.isIdentified) {
+                titleToShow = getDisplayText(item.trueName, item.secretKeeper, true) || item.trueName || item.apparentName || "Unknown Item";
+                descHtml = (getDisplayText(item.description, item.secretKeeper, true) || item.description || "").replace(/\n/g, '<br>');
+            } else if (state.isDmMode) {
+                const pTrue = getDisplayText(item.trueName, item.secretKeeper, false) || item.trueName;
+                subtitleHtml = `<div class="true-name-reveal">True Name: ${pTrue}</div>`;
+                descHtml = (getDisplayText(item.description, item.secretKeeper, false) || item.description || "").replace(/\n/g, '<br>');
+            } else { descHtml = "<div class='hidden-text'>Properties unknown until identified.</div>"; }
+
+            // Dynamic "Yourself" vs "Others" override for Treasure Cards
+            if (item.cardType === 'Treasure' && titleToShow && (titleToShow === "Personal Wealth" || titleToShow.includes("Wealth"))) {
+                if (state.currentUser && item.owner === state.currentUser.name) {
+                    titleToShow = "Personal Wealth";
+                } else if (item.owner !== "Party Stash" && item.owner !== "DM Stash") {
+                    let ownerData = state.players.find(p => p.name === item.owner);
+                    let cName = ownerData ? (ownerData.character || ownerData.name) : item.owner;
+                    titleToShow = `${cName} Wealth`;
+                }
+            }
+
+            if (state.isDmMode || item.isCurseRevealed) {
+                plainDC = getDisplayText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC || "";
+                plainCurse = getDisplayText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails || "";
+                if (plainDC.trim() || plainCurse.trim()) hasCurse = true;
+            }
+
+            if (hasCurse) {
+                if (item.isCurseRevealed) curseHtml = `<div class="curse-box"><strong>💀 Curse Revealed</strong><br><em style="font-size:11px; color:#aaa;">DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
+                else if (state.isDmMode) curseHtml = `<div class="curse-box hidden"><strong>🤫 Hidden Curse (DM Only)</strong><br><em style="font-size:11px; color:#aaa;">DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
+            }
+
+            const ownerDisplay = getPlayerDisplayName(state.players.find(p => p.name === item.owner)) || item.owner;
+            const rarity = item.rarity || "Mundane";
+            let badgesHtml = `<span class="badge type">${item.cardType === 'Transcription' ? '📜 Transcription' : (item.cardType === 'Treasure' ? '💎 Wealth' : (item.cardType === 'Quest' ? '🗺️ Quest' : (item.cardType === 'Note' ? '📝 Note' : '🗡️ Item')))}</span>`;
+            
+            if (item.cardType !== 'Note' && item.cardType !== 'Quest') {
+                if (item.cardType === 'Item') badgesHtml += `<span class="badge ${rarity.toLowerCase()}">${rarity}</span>`;
+                badgesHtml += `<span class="badge owner">🎒 ${ownerDisplay}</span>`;
+                if (item.storageLocation) badgesHtml += `<span class="badge location">📍 ${item.storageLocation}</span>`;
+                if (item.weight && item.weight !== "-") badgesHtml += `<span class="badge">⚖️ ${item.weight}</span>`;
+                
+                if (item.hasQuantity && item.cardType !== 'Treasure') {
+                    badgesHtml += `<span class="badge qty">📦 QTY: ${item.quantity !== undefined ? item.quantity : 1}${item.maxQuantity ? '/'+item.maxQuantity : ''}</span>`;
+                }
+                if (item.requiresAttunement && !item.isAttuned) badgesHtml += `<span class="badge">🔮 Req. Attunement</span>`;
+                if (item.isAttuned) badgesHtml += `<span class="badge attunement">🔗 Attuned</span>`;
+                if (item.isIdentified) badgesHtml += `<span class="badge" style="background:#27ae60;">👁️ Identified</span>`;
+                else badgesHtml += `<span class="badge" style="background:#7f8c8d;">❓ Unidentified</span>`;
+            } else if (item.cardType === 'Quest') {
+                badgesHtml += `<span class="badge" style="background:#3498db;">Assigned to: ${ownerDisplay}</span>`;
+            }
+            if (item.secretKeeper && item.secretKeeper !== "Shared") badgesHtml += `<span class="badge keeper">GM: ${item.secretKeeper}</span>`;
+
+            let imgHtml = item.imageUrl ? `<img src="${item.imageUrl}" alt="Item">` : `<div class="image-placeholder">No Image</div>`;
+            if (item.cardType === 'Note' || item.cardType === 'Treasure' || item.cardType === 'Quest') imgHtml = ""; 
+
+            let wealthHtml = "";
+            if (item.cardType === 'Treasure') {
+                let w = parseWealth(item.wealthData);
+                let canEdit = state.isDmMode || (state.currentUser && item.owner === state.currentUser.name);
+                wealthHtml = `
+                    <div class="wealth-inputs" style="${canEdit ? '' : 'pointer-events:none; opacity:0.8;'}">
+                        <div class="wealth-field"><label>PP</label><input type="number" min="0" value="${w.pp||0}" oninput="updateWealth('${item.id}', 'pp', this.value)"></div>
+                        <div class="wealth-field"><label>GP</label><input type="number" min="0" value="${w.gp||0}" oninput="updateWealth('${item.id}', 'gp', this.value)"></div>
+                        <div class="wealth-field"><label>EP</label><input type="number" min="0" value="${w.ep||0}" oninput="updateWealth('${item.id}', 'ep', this.value)"></div>
+                        <div class="wealth-field"><label>SP</label><input type="number" min="0" value="${w.sp||0}" oninput="updateWealth('${item.id}', 'sp', this.value)"></div>
+                        <div class="wealth-field"><label>CP</label><input type="number" min="0" value="${w.cp||0}" oninput="updateWealth('${item.id}', 'cp', this.value)"></div>
+                        <div style="width:100%; margin-top:5px;"><label style="font-size:10px; color:#aaa; font-weight:bold;">Gems & Art Objects</label><input type="text" value="${w.gems||""}" placeholder="e.g. 2x Rubies (50gp)" oninput="updateWealth('${item.id}', 'gems', this.value)" style="margin:0; font-size:12px; padding:6px;"></div>
+                    </div>
+                `;
+            }
+
+            let consumeActionsHtml = "";
+            if (item.hasQuantity && item.cardType !== 'Treasure') {
+                const canEditQty = state.isDmMode || (state.currentUser && item.owner === state.currentUser.name);
+                if (canEditQty) {
+                    consumeActionsHtml = `
+                        <div class="consume-controls">
+                            <span style="font-size:12px; color:#aaa; font-weight:bold;">QTY:</span>
+                            <button class="qty-btn minus" onclick="changeQty('${item.id}', -1)">-</button>
+                            <span style="font-size:16px; font-weight:bold; min-width:24px; text-align:center;">${item.quantity !== undefined ? item.quantity : 1}${item.maxQuantity ? '/'+item.maxQuantity : ''}</span>
+                            <button class="qty-btn plus" onclick="changeQty('${item.id}', 1)">+</button>
+                            ${(item.isConsumable && item.quantity === 0 && !state.isDmMode) ? `<button class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')" style="margin-left:auto;">🗑️ Clear Empty</button>` : ''}
+                        </div>`;
+                }
+            }
+
+            let playerActionsHtml = "";
+            if (state.currentUser && !state.isDmMode && item.cardType === 'Item') {
+                if (item.owner === "Party Stash") {
+                    playerActionsHtml = `<button onclick="takeItem('${item.id}')" style="background: #27ae60; width: 100%;">🎒 Take Item</button>`;
+                } else if (item.owner === state.currentUser.name) {
+                    if (item.requiresAttunement) playerActionsHtml += `<button onclick="toggleProp('${item.id}', 'isAttuned')" style="background: ${item.isAttuned ? '#8e44ad' : '#9b59b6'}; flex:1;">${item.isAttuned ? '🔗 Break Attunement' : '🔗 Attune'}</button>`;
+                    playerActionsHtml += `<button onclick="returnItem('${item.id}')" style="background: #e67e22; flex:1;">📦 Return to Stash</button>`;
+                }
+            }
+
+            let dmActionsHtml = "";
+            if (state.isDmMode) {
+                if (item.cardType === 'Quest') {
+                    dmActionsHtml = `<button onclick="toggleProp('${item.id}', 'isCollapsed')" style="background:#34495e; flex:1;">Collapse Quest</button>`;
+                } else if (item.cardType !== 'Note' && item.cardType !== 'Treasure') {
+                    dmActionsHtml = `<button onclick="toggleIdentified('${item.id}')" style="background: ${item.isIdentified ? '#f39c12' : '#2ecc71'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isIdentified ? 'Mark Unidentified' : 'Mark Identified'}</button>`;
+                    if (hasCurse) dmActionsHtml += `<button onclick="toggleCurse('${item.id}')" style="background: ${item.isCurseRevealed ? '#c0392b' : '#34495e'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isCurseRevealed ? 'Hide Curse' : 'Reveal Curse'}</button>`;
+                }
+                dmActionsHtml += `<button onclick="toggleEdit('${item.id}')" style="flex: 1;">Edit ${item.cardType}</button>`;
+            } else if (item.owner === state.currentUser?.name || item.cardType === 'Note') {
+                dmActionsHtml = `<button onclick="toggleEdit('${item.id}')" style="flex: 1; background:#555;">Edit Details</button>`;
+            }
+
+            const printSelectHtml = `<input type="checkbox" class="print-checkbox" title="Select for Printing">`;
+
+            card.innerHTML = `
+                ${printSelectHtml}
+                ${imgHtml ? `<div class="image-container">${imgHtml}</div>` : ''}
+                <div class="card-content">
+                    <div><h3 class="item-title">${titleToShow}</h3>${subtitleHtml}</div>
+                    <div class="badges">${badgesHtml}</div>
+                    ${wealthHtml}
+                    ${descHtml ? `<div class="description-box">${descHtml}</div>` : ''}
+                    ${curseHtml}
+                    ${consumeActionsHtml}
+                    ${playerActionsHtml ? `<div class="card-actions" style="border-top: none; padding-top: 0;">${playerActionsHtml}</div>` : ''}
+                    ${dmActionsHtml ? `<div class="card-actions">${dmActionsHtml}</div>` : ''}
+                </div>
+                ${createEditForm(item)}
+            `;
+            return card;
+        }
+
+        // --- Edit Form Builder ---
+        function createEditForm(item) {
+            const isKeeper = state.isDmMode && state.currentUser && (item.secretKeeper === "Shared" || state.currentUser.name === item.secretKeeper);
+            const rosterOptionsHtml = ["Party Stash", "DM Stash", ...state.players.map(p => p.name)].map(val => `<option value="${val}" ${item.owner === val ? "selected" : ""}>${getPlayerDisplayName(state.players.find(p=>p.name===val)) || val}</option>`).join("");
+            const raritySelectHtml = RARITY_OPTIONS.map(opt => `<option value="${opt}" ${item.rarity === opt ? "selected" : ""}>${opt}</option>`).join("");
+            const sizeSelectHtml = CARD_SIZES.map(opt => `<option value="${opt}" ${(item.cardSize || "Standard") === opt ? "selected" : ""}>${opt}</option>`).join("");
+            const locSelectHtml = STORAGE_LOCATIONS.map(opt => `<option value="${opt}" ${(item.storageLocation || "Backpack") === opt ? "selected" : ""}>${opt}</option>`).join("");
+
+            let shareBtn = item.secretKeeper === "Shared" ? `<div style="font-size:12px; color:#2ecc71; text-align:center; width:100%; padding: 10px 0; border-top: 1px dashed #444; margin-top: 10px;">🔓 Shared with all DMs</div>` 
+                : (isKeeper ? `<div style="border-top: 1px dashed #444; margin-top: 10px; padding-top: 10px; width: 100%;"><button onclick="makeShared('${item.id}')" style="background: #9b59b6; width: 100%;">🔓 Allow All DMs to Edit</button></div>` : '');
+
+            if (item.cardType === 'Note') {
+                return `
+                <div class="edit-form ${item.isEditing ? 'active' : ''}">
+                    <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Note</h3>
+                    <div class="form-group"><label>Title</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value)"></div>
+                    <div class="form-group" style="flex-grow: 1;"><label>Content</label><textarea style="height:200px;" oninput="updateItem('${item.id}', 'description', this.value)">${item.description || ""}</textarea></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
+                        <div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div>
+                    </div>
+                    <div class="card-actions" style="margin-top: 10px;">
+                        <button type="button" class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')">Delete</button>
+                        <div style="display:flex; gap:10px;">
+                            <button type="button" class="del-btn" id="discard-btn-${item.id}" onclick="confirmDiscard('${item.id}')" style="background:#7f8c8d;">Discard</button>
+                            <button type="button" class="add-btn" onclick="toggleEdit('${item.id}')">Done</button>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            if (item.cardType === 'Treasure') {
+                 return `
+                <div class="edit-form ${item.isEditing ? 'active' : ''}">
+                    <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Wealth Container</h3>
+                    <div class="form-group"><label>Container Name</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value)"></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
+                        <div class="form-group"><label>Location</label><select onchange="updateItem('${item.id}', 'storageLocation', this.value)">${locSelectHtml}</select></div>
+                    </div>
+                    <div class="form-row"><div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div></div>
+                    <div class="card-actions" style="margin-top: 10px;">
+                        <button type="button" class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')">Delete</button>
+                        <div style="display:flex; gap:10px;">
+                            <button type="button" class="del-btn" id="discard-btn-${item.id}" onclick="confirmDiscard('${item.id}')" style="background:#7f8c8d;">Discard</button>
+                            <button type="button" class="add-btn" onclick="toggleEdit('${item.id}')">Done</button>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            return `
+                <div class="edit-form ${item.isEditing ? 'active' : ''}">
+                    <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit ${item.cardType}</h3>
+                    <div class="form-group"><label>Name (Public)</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value)"></div>
+                    <div class="form-group"><label>True Name (Secret)</label><input type="text" value="${getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName}" oninput="updateItem('${item.id}', 'trueName', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
+                    
+                    <div class="form-row">
+                        ${item.cardType === 'Item' ? `<div class="form-group"><label>Rarity</label><select onchange="updateRarity('${item.id}', this.value)" ${!isKeeper ? 'disabled' : ''}>${raritySelectHtml}</select></div>` : ''}
+                        <div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div>
+                    </div>
+
+                    <div class="form-group" style="flex-grow: 1;"><label>Description (Secret)</label><textarea oninput="updateItem('${item.id}', 'description', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description}</textarea></div>
+                    
+                    ${item.cardType !== 'Quest' ? `
+                    <div style="border-top: 1px dashed #e74c3c; margin-top: 5px; padding-top: 10px;">
+                        <div class="form-group"><label style="color: #e74c3c;">Identify Spell DC (Secret)</label><input type="text" placeholder="e.g., 15" value="${getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC}" oninput="updateItem('${item.id}', 'curseDetectDC', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
+                        <div class="form-group"><label style="color: #e74c3c;">Curse Details / DM Notes (Secret)</label><textarea oninput="updateItem('${item.id}', 'curseDetails', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails}</textarea></div>
+                    </div>
+                    <div class="form-group"><label>Image URL</label>
+                        <div style="display:flex; gap: 10px;">
+                            <input type="text" value="${item.imageUrl}" placeholder="URL..." oninput="updateItem('${item.id}', 'imageUrl', this.value)" style="flex-grow:1; margin:0;">
+                            <label class="add-btn" style="cursor:pointer; display:flex; align-items:center; border-radius:4px; padding: 0 10px;">📁 Upload<input type="file" style="display:none;" accept="image/*" onchange="handleImageUpload('${item.id}', this)"></label>
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <div class="form-row" style="margin-top: 10px; flex-wrap:wrap; border-top: 1px dashed #555; padding-top: 10px;">
+                        <div class="checkbox-group"><input type="checkbox" id="hasQty-${item.id}" ${item.hasQuantity ? 'checked' : ''} onchange="updateItem('${item.id}', 'hasQuantity', this.checked)"><label for="hasQty-${item.id}">Has Qty/Charges</label></div>
+                        <div class="checkbox-group"><input type="checkbox" id="consumable-${item.id}" ${item.isConsumable ? 'checked' : ''} onchange="updateItem('${item.id}', 'isConsumable', this.checked)"><label for="consumable-${item.id}">Is Consumable (Deletes at 0)</label></div>
+                    </div>
+                    <div class="form-row" style="${item.hasQuantity ? '' : 'opacity: 0.3; pointer-events:none;'}">
+                        <div class="form-group"><label>Current Qty</label><input type="number" min="0" value="${item.quantity !== undefined ? item.quantity : 1}" oninput="updateItem('${item.id}', 'quantity', parseInt(this.value) || 0)"></div>
+                        <div class="form-group"><label>Max Qty (Optional)</label><input type="number" min="0" placeholder="e.g. 10" value="${item.maxQuantity || ''}" oninput="updateItem('${item.id}', 'maxQuantity', this.value)"></div>
+                    </div>
+
+                    <div class="form-row" style="border-top: 1px dashed #555; padding-top: 10px;">
+                        <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
+                        <div class="form-group"><label>Location</label><select onchange="updateItem('${item.id}', 'storageLocation', this.value)">${locSelectHtml}</select></div>
+                        ${item.cardType === 'Item' ? `<div class="form-group"><label>Weight</label><input type="text" value="${item.weight}" oninput="updateItem('${item.id}', 'weight', this.value)"></div>` : ''}
+                    </div>
+
+                    ${item.cardType === 'Item' ? `
+                    <div class="form-row" style="margin-top: 10px; flex-wrap:wrap;">
+                        <div class="checkbox-group"><input type="checkbox" id="reqatt-${item.id}" ${item.requiresAttunement ? 'checked' : ''} onchange="updateItem('${item.id}', 'requiresAttunement', this.checked)"><label for="reqatt-${item.id}">Req. Attunement</label></div>
+                        <div class="checkbox-group"><input type="checkbox" id="attune-${item.id}" ${item.isAttuned ? 'checked' : ''} onchange="updateItem('${item.id}', 'isAttuned', this.checked)"><label for="attune-${item.id}">Is Attuned</label></div>
+                    </div>` : ''}
+                    
+                    ${shareBtn}
+                    
+                    <div class="card-actions" style="margin-top: 10px;">
+                        <button type="button" class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')" ${!isKeeper && item.secretKeeper !== "Shared" ? 'disabled' : ''}>Delete</button>
+                        <div style="display:flex; gap:10px;">
+                            <button type="button" class="del-btn" id="discard-btn-${item.id}" onclick="confirmDiscard('${item.id}')" style="background:#7f8c8d;">Discard</button>
+                            <button type="button" class="add-btn" onclick="toggleEdit('${item.id}')">Done</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

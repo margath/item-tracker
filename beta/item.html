@@ -108,14 +108,14 @@
         .dm-toggle-btn { background: #34495e; display: flex; align-items: center; gap: 6px; }
         .potion-btn { background: #c0392b; font-size: 11px; padding: 6px 10px; }
 
-        /* True CSS Dropdown */
+        /* Add Menu Dropdown Styles */
         .dropdown { position: relative; display: inline-block; }
         .dropdown-content {
             display: none; position: absolute; right: 0; top: 100%; background-color: #2a2a35;
             min-width: 220px; box-shadow: 0px 8px 16px rgba(0,0,0,0.6); z-index: 200;
             border: 1px solid #555; border-radius: 6px; overflow: hidden; margin-top: 8px;
         }
-        .dropdown:hover .dropdown-content { display: flex; flex-direction: column; }
+        .dropdown-content.show { display: flex; flex-direction: column; }
         .dropdown-content a {
             color: white; padding: 12px 16px; text-decoration: none; display: block;
             font-size: 13px; font-weight: bold; border-bottom: 1px solid #333; transition: background 0.2s;
@@ -522,8 +522,8 @@ function doPost(e) {
                 </div>
 
                 <div class="dropdown" id="add-dropdown-container" style="display: none;">
-                    <button class="add-btn">+ Add New... ▼</button>
-                    <div class="dropdown-content">
+                    <button class="add-btn" onclick="toggleDropdown(event, 'add-menu-dropdown')">+ Add New... ▼</button>
+                    <div id="add-menu-dropdown" class="dropdown-content">
                         <a href="#" id="dropdown-srd" onclick="openModal('srd-modal'); return false;" style="color: #2ecc71;">📖 SRD Magic Item</a>
                         <a href="#" onclick="addNewCard('Item'); return false;">🗡️ Standard Item</a>
                         <a href="#" onclick="addNewCard('Treasure'); return false;" style="color: #f1c40f;">💎 Treasure / Wealth</a>
@@ -660,6 +660,25 @@ function doPost(e) {
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         function getPlayerDisplayName(p) { return p ? (p.character ? `${p.name} (${p.character})` : p.name) : "Party Stash"; }
         function parseWeight(str, qty) { const n = parseFloat(String(str).replace(/[^\d.]/g, '')); return isNaN(n) ? 0 : n * (qty || 1); }
+        function parseWealth(data) {
+            if (!data) return {};
+            if (typeof data === 'object') return data;
+            try { return JSON.parse(data); } catch(e) { return {}; }
+        }
+
+        function toggleDropdown(event, id) {
+            event.stopPropagation();
+            document.getElementById(id).classList.toggle("show");
+        }
+
+        window.onclick = function(event) {
+            if (!event.target.matches('.dropdown-content') && !event.target.closest('.dropdown-content') && !event.target.matches('.add-btn')) {
+                var dropdowns = document.getElementsByClassName("dropdown-content");
+                for (var i = 0; i < dropdowns.length; i++) {
+                    if (dropdowns[i].classList.contains('show')) dropdowns[i].classList.remove('show');
+                }
+            }
+        }
 
         // --- 2-Step Confirmations ---
         function confirmDelete(id) {
@@ -887,7 +906,7 @@ function doPost(e) {
                         isIdentified: String(item.isIdentified).toLowerCase() === 'true',
                         isCurseRevealed: String(item.isCurseRevealed).toLowerCase() === 'true',
                         isCollapsed: String(item.isCollapsed).toLowerCase() === 'true',
-                        wealthData: typeof item.wealthData === 'string' && item.wealthData.trim() !== "" ? JSON.parse(item.wealthData) : (item.wealthData || {})
+                        wealthData: parseWealth(item.wealthData)
                     }));
                 } else { state.items = []; }
             } catch(e) { console.error("Load error:", e); }
@@ -929,6 +948,8 @@ function doPost(e) {
         function addNewCard(type) {
             if (type === 'Quest' && !state.isDmMode) return;
             
+            const d = document.getElementById('add-menu-dropdown'); if(d) d.classList.remove('show');
+            
             let newItem = {
                 id: Date.now(), cardType: type, apparentName: `New ${type}`, trueName: "", quantity: 1, maxQuantity: "",
                 hasQuantity: false, isConsumable: false, imageUrl: "", weight: "-", description: "", requiresAttunement: false, 
@@ -946,25 +967,8 @@ function doPost(e) {
                 newItem.description = "Contains supplies to transcribe spells. 1 Charge = 1 Spell Level (50gp value)."; 
             }
 
-            newItem._backup = JSON.stringify(newItem); // Backup for discarding
+            newItem._backup = JSON.stringify(newItem); 
             state.items.unshift(newItem);
-            renderAll(); triggerAutoSave();
-        }
-
-        function quickAddPotion(type) {
-            let desc = "Regain HP when consumed. ";
-            let trueName = type === 'Healing' ? 'Potion of Healing' : `Potion of ${type} Healing`;
-            let rarity = "Common";
-            if(type === 'Healing') { desc += "2d4 + 2 HP."; }
-            if(type === 'Greater') { desc += "4d4 + 4 HP."; rarity = "Uncommon"; }
-            if(type === 'Superior') { desc += "8d4 + 8 HP."; rarity = "Rare"; }
-            if(type === 'Supreme') { desc += "10d4 + 20 HP."; rarity = "Epic"; }
-
-            state.items.unshift({
-                id: Date.now(), cardType: "Item", isIdentified: true, apparentName: "Glass Potion Bottle", trueName: trueName, 
-                hasQuantity: true, quantity: 1, maxQuantity: "", isConsumable: true, storageLocation: "Pouch", weight: "0.5 lbs", description: desc, 
-                cardSize: "Mini", rarity: rarity, owner: "Party Stash", secretKeeper: state.currentUser.name, isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false 
-            });
             renderAll(); triggerAutoSave();
         }
 
@@ -1024,7 +1028,7 @@ function doPost(e) {
             if (!canDelete) { showToast("Players can only delete empty consumables.", "error"); return; }
             state.items = state.items.filter(i => String(i.id) !== String(id)); 
             renderAll(); triggerAutoSave();
-            showToast("Item deleted.", "success");
+            showToast("Card deleted.", "success");
         }
 
         function makeShared(id) {
@@ -1048,7 +1052,7 @@ function doPost(e) {
                     items.forEach(i => {
                         let w = parseWeight(i.weight, i.hasQuantity ? i.quantity : 1);
                         if (i.cardType === 'Treasure') {
-                            let wd = typeof i.wealthData === 'string' ? JSON.parse(i.wealthData || "{}") : (i.wealthData || {});
+                            let wd = parseWealth(i.wealthData);
                             let totalCoins = (parseInt(wd.pp)||0) + (parseInt(wd.gp)||0) + (parseInt(wd.ep)||0) + (parseInt(wd.sp)||0) + (parseInt(wd.cp)||0);
                             coins += totalCoins / 50; 
                         } else if (["Equipped/Worn", "Belt", "Bandolier"].includes(i.storageLocation)) { combat += w; } 
@@ -1064,7 +1068,7 @@ function doPost(e) {
                 document.getElementById('encumbrance-content').innerHTML = html + `</table>`; 
                 openModal('encumbrance-modal');
             } catch(e) {
-                console.error(e);
+                console.error("Encumbrance error:", e);
                 showToast("Error calculating encumbrance.", "error");
             }
         }
@@ -1074,7 +1078,7 @@ function doPost(e) {
                 let sums = { pp:0, gp:0, ep:0, sp:0, cp:0 };
                 let gemsList = [];
                 state.items.filter(i => i.cardType === 'Treasure').forEach(i => {
-                    let wd = typeof i.wealthData === 'string' ? JSON.parse(i.wealthData || "{}") : (i.wealthData || {});
+                    let wd = parseWealth(i.wealthData);
                     sums.pp += parseInt(wd.pp) || 0; sums.gp += parseInt(wd.gp) || 0;
                     sums.ep += parseInt(wd.ep) || 0; sums.sp += parseInt(wd.sp) || 0;
                     sums.cp += parseInt(wd.cp) || 0;
@@ -1092,7 +1096,7 @@ function doPost(e) {
                 `;
                 openModal('wealth-modal');
             } catch(e) {
-                console.error(e);
+                console.error("Wealth error:", e);
                 showToast("Error calculating wealth.", "error");
             }
         }
@@ -1120,7 +1124,7 @@ function doPost(e) {
                 ['logout-btn-header', 'user-info-display', 'add-dropdown-container', 'switch-mode-btn', 'dm-toolbar'].forEach(id => document.getElementById(id).style.display = 'none');
             }
 
-            // Ensure every player has a Treasure card (Runs for Demo & Cloud)
+            // Ensure every player has a Treasure card
             if (state.players.length > 0) {
                 state.players.forEach(p => {
                     if (p.character === 'DM') return;
@@ -1182,7 +1186,7 @@ function doPost(e) {
                 
                 let qtyStr = "-";
                 if (item.cardType === 'Treasure') {
-                    let w = typeof item.wealthData === 'string' ? JSON.parse(item.wealthData || "{}") : (item.wealthData || {}); 
+                    let w = parseWealth(item.wealthData);
                     qtyStr = `${w.gp||0}g ${w.sp||0}s ${w.cp||0}c`;
                 } else if (item.hasQuantity) {
                     qtyStr = `${item.quantity}${item.maxQuantity ? '/'+item.maxQuantity : ''}`;
@@ -1271,7 +1275,7 @@ function doPost(e) {
 
             let wealthHtml = "";
             if (item.cardType === 'Treasure') {
-                let w = typeof item.wealthData === 'string' ? JSON.parse(item.wealthData || "{}") : (item.wealthData || {});
+                let w = parseWealth(item.wealthData);
                 let canEdit = state.isDmMode || (state.currentUser && item.owner === state.currentUser.name);
                 wealthHtml = `
                     <div class="wealth-inputs" style="${canEdit ? '' : 'pointer-events:none; opacity:0.8;'}">

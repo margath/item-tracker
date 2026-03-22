@@ -1125,20 +1125,21 @@ function disconnectCloud() {
                 ['logout-btn-header', 'user-info-display', 'add-dropdown-container', 'switch-mode-btn', 'dm-toolbar'].forEach(id => document.getElementById(id).style.display = 'none');
             }
 
-            // Ensure every player has a Treasure card
+// Ensure every player has a Treasure card (Runs for Demo & Cloud)
             if (state.players.length > 0) {
                 state.players.forEach(p => {
-                    if (p.character === 'DM') return;
+                    if (p.character === 'DM' || p.name === 'Party Stash') return;
                     if (!state.items.some(i => i.cardType === 'Treasure' && i.owner === p.name)) {
+                        let cName = p.character ? p.character : p.name;
                         state.items.push({
-                            id: Date.now() + Math.random(), cardType: "Treasure", isIdentified: true, apparentName: "Personal Wealth", trueName: "Personal Wealth",
+                            id: Date.now() + Math.random(), cardType: "Treasure", isIdentified: true, apparentName: `${cName} Wealth`, trueName: `${cName} Wealth`,
                             owner: p.name, storageLocation: "Pouch", secretKeeper: "Shared", cardSize: "Standard", rarity: "Mundane",
                             wealthData: {pp:0, gp:0, ep:0, sp:0, cp:0, gems:""}, isEditing: false 
                         });
                     }
                 });
             }
-
+            
             // Filter & Sort
             let displayItems = state.items.filter(item => {
                 if (item.owner === "DM Stash" && !state.isDmMode) return false; 
@@ -1237,7 +1238,17 @@ function disconnectCloud() {
                 subtitleHtml = `<div class="true-name-reveal">True Name: ${pTrue}</div>`;
                 descHtml = (getDisplayText(item.description, item.secretKeeper, false) || item.description || "").replace(/\n/g, '<br>');
             } else { descHtml = "<div class='hidden-text'>Properties unknown until identified.</div>"; }
-
+            
+            // Dynamic "Yourself" vs "Others" override for Treasure Cards
+            if (item.cardType === 'Treasure' && (titleToShow === "Personal Wealth" || titleToShow.includes("Wealth"))) {
+                if (state.currentUser && item.owner === state.currentUser.name) {
+                    titleToShow = "Personal Wealth";
+                } else if (item.owner !== "Party Stash" && item.owner !== "DM Stash") {
+                    let ownerData = state.players.find(p => p.name === item.owner);
+                    let cName = ownerData ? (ownerData.character || ownerData.name) : item.owner;
+                    titleToShow = `${cName} Wealth`;
+                }
+            }
             if (state.isDmMode || item.isCurseRevealed) {
                 plainDC = getDisplayText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC || "";
                 plainCurse = getDisplayText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails || "";

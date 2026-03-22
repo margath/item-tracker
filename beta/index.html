@@ -123,9 +123,22 @@
         .dropdown-content a:hover { background-color: #34495e; }
         .dropdown-content a:last-child { border-bottom: none; }
 
-        /* Main Grid (Vertical Stacking Setup) */
+        /* Main Grid (Vertical Stacking & Sectioned Setup) */
         main.grid-view {
-            padding: 30px; display: grid; gap: 20px; flex-grow: 1;
+            padding: 30px; display: flex; flex-direction: column; gap: 35px; flex-grow: 1;
+        }
+        
+        .inventory-group {
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        
+        .group-header {
+            font-size: 22px; font-weight: bold; color: #fff; border-bottom: 2px solid #444; 
+            padding-bottom: 8px; margin: 0; display: flex; align-items: center; gap: 10px;
+        }
+        
+        .inventory-grid {
+            display: grid; gap: 20px;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             grid-auto-rows: 240px; /* Base height for all calculations */
             grid-auto-flow: row dense; /* Packs the mini cards into empty vertical slots */
@@ -273,7 +286,8 @@
 
         /* Responsive Mobile Layout */
         @media (max-width: 600px) {
-            main.grid-view { padding: 15px; gap: 15px; grid-template-columns: 1fr; }
+            main.grid-view { padding: 15px; gap: 20px; }
+            .inventory-grid { grid-template-columns: 1fr; }
             header { padding: 10px 15px; flex-direction: column; align-items: stretch; gap: 10px; }
             .header-controls { justify-content: space-between; }
             .github-links { display: none !important; } 
@@ -285,7 +299,13 @@
             body { background: white !important; color: black !important; }
             header, .dm-toolbar, .search-bar-container, .modal-overlay, #toast-notification { display: none !important; }
             
-            main.grid-view { display: flex !important; flex-wrap: wrap; gap: 5mm; padding: 0; justify-content: flex-start; }
+            main.grid-view { display: block !important; padding: 0; gap: 0; }
+            
+            .inventory-group { display: block; margin-bottom: 10mm; }
+            .group-header { font-size: 16pt !important; color: black !important; border-bottom: 2px solid #000; padding-bottom: 2mm; margin-bottom: 4mm; margin-top: 0; page-break-after: avoid; }
+            
+            .inventory-grid { display: flex !important; flex-wrap: wrap; gap: 5mm; justify-content: flex-start; }
+            
             .loot-card { 
                 display: none; 
                 page-break-inside: avoid; break-inside: avoid;
@@ -593,7 +613,6 @@ function doPost(e) {
     </div>
 
     <script>
-        const GITHUB_REPO = "YOUR_USERNAME/YOUR_REPO"; 
         const CAMPAIGN_KEY = "SecretDragonHoard2026"; 
         const REQUIRED_BACKEND_VERSION = "2.0";
 
@@ -690,7 +709,7 @@ function doPost(e) {
 
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        function getPlayerDisplayName(p) { return p ? (p.character ? `${p.name} (${p.character})` : p.name) : "Party Stash"; }
+        function getPlayerDisplayName(p) { return p ? (p.character ? `${p.name} (${p.character})` : p.name) : null; }
         function parseWeight(str, qty) { const n = parseFloat(String(str).replace(/[^\d.]/g, '')); return isNaN(n) ? 0 : n * (qty || 1); }
         function parseWealth(data) {
             if (!data) return {};
@@ -1263,7 +1282,51 @@ function doPost(e) {
 
         function renderGrid(container, items) {
             container.innerHTML = '';
-            items.forEach(item => container.appendChild(createCardElement(item)));
+            
+            // Group items by owner
+            let groups = {};
+            items.forEach(item => {
+                let owner = item.owner || "Unknown";
+                if (!groups[owner]) groups[owner] = [];
+                groups[owner].push(item);
+            });
+
+            // Specific display order: Current User -> Party Stash -> DM Stash -> Everyone Else (alphabetically)
+            let order = [];
+            if (state.currentUser && groups[state.currentUser.name]) order.push(state.currentUser.name);
+            if (groups["Party Stash"]) order.push("Party Stash");
+            if (groups["DM Stash"]) order.push("DM Stash");
+            
+            Object.keys(groups).sort().forEach(owner => {
+                if (!order.includes(owner)) order.push(owner);
+            });
+
+            order.forEach(owner => {
+                let groupDiv = document.createElement('div');
+                groupDiv.className = 'inventory-group';
+                
+                let header = document.createElement('h2');
+                header.className = 'group-header';
+                let ownerObj = state.players.find(p => p.name === owner);
+                let displayName = owner === "Party Stash" || owner === "DM Stash" ? owner : (ownerObj && ownerObj.character ? `${ownerObj.name} (${ownerObj.character})` : owner);
+                
+                if (state.currentUser && owner === state.currentUser.name) {
+                    header.innerHTML = `🎒 My Inventory`;
+                } else if (owner === "Party Stash") {
+                    header.innerHTML = `📦 Party Stash`;
+                } else {
+                    header.innerHTML = `👤 ${displayName}`;
+                }
+                
+                let gridDiv = document.createElement('div');
+                gridDiv.className = 'inventory-grid';
+                
+                groups[owner].forEach(item => gridDiv.appendChild(createCardElement(item)));
+                
+                groupDiv.appendChild(header);
+                groupDiv.appendChild(gridDiv);
+                container.appendChild(groupDiv);
+            });
         }
 
         function renderTable(container, items) {

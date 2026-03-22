@@ -535,7 +535,7 @@ function doPost(e) {
                 <div class="dropdown" id="add-dropdown-container" style="display: none;">
                     <button class="add-btn" onclick="toggleDropdown(event, 'add-menu-dropdown')">+ Add New... ▼</button>
                     <div id="add-menu-dropdown" class="dropdown-content">
-                        <a href="#" id="dropdown-srd" onclick="document.getElementById('srd-search-input').value=''; renderSrdList(); openModal('srd-modal'); return false;" style="color: #2ecc71;">📖 SRD Magic Item</a>
+                        <a href="#" id="dropdown-srd" onclick="openModal('srd-modal'); return false;" style="color: #2ecc71;">📖 SRD Magic Item</a>
                         <a href="#" onclick="addNewCard('Item'); return false;">🗡️ Standard Item</a>
                         <a href="#" onclick="addNewCard('Treasure'); return false;" style="color: #f1c40f;">💎 Treasure / Wealth</a>
                         <a href="#" onclick="addNewCard('Transcription'); return false;" style="color: #9b59b6;">📜 Transcription Supplies</a>
@@ -545,7 +545,7 @@ function doPost(e) {
                 </div>
                 
                 <button id="switch-mode-btn" style="display: none; background: #9b59b6;" onclick="switchRole()">👁️ DM View</button>
-                <button id="login-btn-header" class="dm-toggle-btn" onclick="openLoginModal()">👤 Log In</button>
+                <button id="login-btn-header" class="dm-toggle-btn" onclick="openModal('login-modal')">👤 Log In</button>
                 <button id="live-sync-btn" style="background: #555;" onclick="toggleLiveSync()">🔄 Live Sync: OFF</button>
                 <button id="logout-btn-header" style="background: #555; display: none;" onclick="handleLogout()">Logout</button>
                 <button class="setup-btn" id="setup-btn-header" onclick="openSetup()">⚙️ Setup</button>
@@ -572,11 +572,11 @@ function doPost(e) {
     </div>
 
     <script>
-        const GITHUB_REPO = "YOUR_USERNAME/YOUR_REPO"; 
         const CAMPAIGN_KEY = "SecretDragonHoard2026"; 
         const REQUIRED_BACKEND_VERSION = "2.0";
 
         // --- BUILD INFO START ---
+        const GITHUB_REPO = "YOUR_USERNAME/YOUR_REPO"; 
         const BUILD_INFO = {
             version: "Local Build",
             repo: "LOCAL"
@@ -660,7 +660,7 @@ function doPost(e) {
             if(state.scriptUrl) { loadFromCloud(); } else { loadDemoData(); renderAll(); }
         };
 
-        // --- Notifications & Modals ---
+        // --- Notifications, Modals & Dropdowns ---
         function showToast(msg, type='error') {
             const toast = document.getElementById('toast-notification');
             toast.innerText = msg; toast.className = `show ${type}`;
@@ -869,7 +869,7 @@ function doPost(e) {
             const secureData = state.items.map(item => {
                 let outTrueName = item.trueName || ""; let outDesc = item.description || "";
                 let outCurseDC = item.curseDetectDC || ""; let outCurseDetails = item.curseDetails || "";
-                const isKeeper = state.isDmMode && state.currentUser && (item.secretKeeper === "Shared" || state.currentUser.name === item.secretKeeper);
+                const isKeeper = state.currentUser && (item.secretKeeper === state.currentUser.name || (state.isDmMode && item.secretKeeper === "Shared"));
                 const encKey = item.secretKeeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : (state.currentUser ? CAMPAIGN_KEY + "_" + state.currentUser.pin : "");
 
                 if (!item.isIdentified && isKeeper) {
@@ -912,7 +912,7 @@ function doPost(e) {
                 const data = await response.json();
                 
                 if (data.backendVersion !== REQUIRED_BACKEND_VERSION) {
-                    if (state.liveSyncInterval) toggleLiveSync(); 
+                    if (state.liveSyncInterval) { clearInterval(state.liveSyncInterval); state.liveSyncInterval = null; }
                     openModal('db-upgrade-modal');
                     if (btn) { btn.innerText = "⚠️ Upgrade Required"; btn.disabled = false; }
                     return; 
@@ -951,7 +951,10 @@ function doPost(e) {
                 clearInterval(state.liveSyncInterval); state.liveSyncInterval = null;
                 if (btn) { btn.innerHTML = '🔄 Live Sync: OFF'; btn.style.background = '#555'; }
             } else {
-                state.liveSyncInterval = setInterval(() => { if (!state.items.some(i => i.isEditing)) loadFromCloud(true); }, 15000);
+                state.liveSyncInterval = setInterval(() => { 
+                    const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+                    if (!state.items.some(i => i.isEditing) && !isTyping) loadFromCloud(true); 
+                }, 15000);
                 if (btn) { btn.innerHTML = '🔄 Live Sync: ON'; btn.style.background = '#27ae60'; }
                 loadFromCloud(true); 
             }
@@ -960,14 +963,14 @@ function doPost(e) {
         // --- Cryptography ---
         function getDisplayText(text, keeper, isPub = false) {
             if (!text) return ""; if (isPub && !text.startsWith("ENC::")) return text;
-            const canView = state.isDmMode && state.currentUser && (keeper === "Shared" || state.currentUser.name === keeper);
+            const canView = state.currentUser && (state.currentUser.name === keeper || (state.isDmMode && keeper === "Shared"));
             if (!text.startsWith("ENC::")) return (!canView && !isPub) ? `🔒 [Secret]` : text;
             if (!canView && !isPub) return `🔒 [Secret]`;
             try { return CryptoJS.AES.decrypt(text.replace("ENC::", ""), keeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin).toString(CryptoJS.enc.Utf8) || `🔒 [Error]`; } catch(e) { return `🔒 [Error]`; }
         }
         function getEditableText(text, keeper, isPub = false) {
             if (!text) return ""; if (isPub && !text.startsWith("ENC::")) return text;
-            const canView = state.currentUser && (keeper === "Shared" || state.currentUser.name === keeper);
+            const canView = state.currentUser && (state.currentUser.name === keeper || (state.isDmMode && keeper === "Shared"));
             if (!text.startsWith("ENC::")) return (!canView && !isPub) ? `🔒 Encrypted` : text;
             if (!canView && !isPub) return `🔒 Encrypted`;
             try { return CryptoJS.AES.decrypt(text.replace("ENC::", ""), keeper === "Shared" ? CAMPAIGN_KEY + "_SHARED" : CAMPAIGN_KEY + "_" + state.currentUser.pin).toString(CryptoJS.enc.Utf8); } catch(e) { return ""; }
@@ -976,7 +979,6 @@ function doPost(e) {
         // --- Card Actions & Editing ---
         function addNewCard(type) {
             if (type === 'Quest' && !state.isDmMode) return;
-            
             const d = document.getElementById('add-menu-dropdown'); if(d) d.classList.remove('show');
             
             let newItem = {
@@ -1018,13 +1020,13 @@ function doPost(e) {
             renderAll(); triggerAutoSave();
         }
 
-        function updateItem(id, field, value) {
+        function updateItem(id, field, value, skipRender=false) {
             const item = state.items.find(i => String(i.id) === String(id));
-            if (item) { item[field] = value; triggerAutoSave(); renderAll(); }
+            if (item) { item[field] = value; triggerAutoSave(); if(!skipRender) renderAll(); }
         }
-        function updateWealth(id, coin, value) {
+        function updateWealth(id, coin, value, skipRender=false) {
             const item = state.items.find(i => String(i.id) === String(id));
-            if (item) { item.wealthData[coin] = value; triggerAutoSave(); renderAll(); }
+            if (item) { item.wealthData[coin] = value; triggerAutoSave(); if(!skipRender) renderAll(); }
         }
         function updateRarity(id, value) {
             const item = state.items.find(i => String(i.id) === String(id));
@@ -1129,7 +1131,7 @@ function doPost(e) {
                     sums.pp += parseInt(wd.pp) || 0; sums.gp += parseInt(wd.gp) || 0;
                     sums.ep += parseInt(wd.ep) || 0; sums.sp += parseInt(wd.sp) || 0;
                     sums.cp += parseInt(wd.cp) || 0;
-                    if (wd.gems && wd.gems.trim() !== "") gemsList.push(`<em>(${i.owner}):</em> ${wd.gems}`);
+                    if (wd.gems && wd.gems.trim() !== "") gemsList.push(`<em>(${getPlayerDisplayName(state.players.find(p=>p.name===i.owner)) || i.owner}):</em> ${wd.gems}`);
                 });
                 let totalGp = (sums.pp * 10) + sums.gp + (sums.ep * 0.5) + (sums.sp * 0.1) + (sums.cp * 0.01);
                 
@@ -1273,7 +1275,7 @@ function doPost(e) {
             }
 
             card.className = `loot-card ${cardSizeClass} ${item.isIdentified ? 'identified' : ''} ${item.isCurseRevealed ? 'cursed' : ''} type-${(item.cardType||'item').toLowerCase()}`;
-            const isKeeper = state.isDmMode && state.currentUser && (item.secretKeeper === "Shared" || state.currentUser.name === item.secretKeeper);
+            const isKeeper = state.currentUser && (state.currentUser.name === item.secretKeeper || (state.isDmMode && item.secretKeeper === "Shared"));
             
             let titleToShow = item.apparentName || "Unknown Item"; 
             let subtitleHtml = ""; let descHtml = ""; let curseHtml = "";
@@ -1341,12 +1343,12 @@ function doPost(e) {
                 let canEdit = state.isDmMode || (state.currentUser && item.owner === state.currentUser.name);
                 wealthHtml = `
                     <div class="wealth-inputs" style="${canEdit ? '' : 'pointer-events:none; opacity:0.8;'}">
-                        <div class="wealth-field"><label>PP</label><input type="number" min="0" value="${w.pp||0}" oninput="updateWealth('${item.id}', 'pp', this.value)"></div>
-                        <div class="wealth-field"><label>GP</label><input type="number" min="0" value="${w.gp||0}" oninput="updateWealth('${item.id}', 'gp', this.value)"></div>
-                        <div class="wealth-field"><label>EP</label><input type="number" min="0" value="${w.ep||0}" oninput="updateWealth('${item.id}', 'ep', this.value)"></div>
-                        <div class="wealth-field"><label>SP</label><input type="number" min="0" value="${w.sp||0}" oninput="updateWealth('${item.id}', 'sp', this.value)"></div>
-                        <div class="wealth-field"><label>CP</label><input type="number" min="0" value="${w.cp||0}" oninput="updateWealth('${item.id}', 'cp', this.value)"></div>
-                        <div style="width:100%; margin-top:5px;"><label style="font-size:10px; color:#aaa; font-weight:bold;">Gems & Art Objects</label><input type="text" value="${w.gems||""}" placeholder="e.g. 2x Rubies (50gp)" oninput="updateWealth('${item.id}', 'gems', this.value)" style="margin:0; font-size:12px; padding:6px;"></div>
+                        <div class="wealth-field"><label>PP</label><input type="number" min="0" value="${w.pp||0}" oninput="updateWealth('${item.id}', 'pp', this.value, true)"></div>
+                        <div class="wealth-field"><label>GP</label><input type="number" min="0" value="${w.gp||0}" oninput="updateWealth('${item.id}', 'gp', this.value, true)"></div>
+                        <div class="wealth-field"><label>EP</label><input type="number" min="0" value="${w.ep||0}" oninput="updateWealth('${item.id}', 'ep', this.value, true)"></div>
+                        <div class="wealth-field"><label>SP</label><input type="number" min="0" value="${w.sp||0}" oninput="updateWealth('${item.id}', 'sp', this.value, true)"></div>
+                        <div class="wealth-field"><label>CP</label><input type="number" min="0" value="${w.cp||0}" oninput="updateWealth('${item.id}', 'cp', this.value, true)"></div>
+                        <div style="width:100%; margin-top:5px;"><label style="font-size:10px; color:#aaa; font-weight:bold;">Gems & Art Objects</label><input type="text" value="${w.gems||""}" placeholder="e.g. 2x Rubies (50gp)" oninput="updateWealth('${item.id}', 'gems', this.value, true)" style="margin:0; font-size:12px; padding:6px;"></div>
                     </div>
                 `;
             }
@@ -1411,7 +1413,7 @@ function doPost(e) {
 
         // --- Edit Form Builder ---
         function createEditForm(item) {
-            const isKeeper = state.isDmMode && state.currentUser && (item.secretKeeper === "Shared" || state.currentUser.name === item.secretKeeper);
+            const isKeeper = state.currentUser && (state.currentUser.name === item.secretKeeper || (state.isDmMode && item.secretKeeper === "Shared"));
             const rosterOptionsHtml = ["Party Stash", "DM Stash", ...state.players.map(p => p.name)].map(val => `<option value="${val}" ${item.owner === val ? "selected" : ""}>${getPlayerDisplayName(state.players.find(p=>p.name===val)) || val}</option>`).join("");
             const raritySelectHtml = RARITY_OPTIONS.map(opt => `<option value="${opt}" ${item.rarity === opt ? "selected" : ""}>${opt}</option>`).join("");
             const sizeSelectHtml = CARD_SIZES.map(opt => `<option value="${opt}" ${(item.cardSize || "Standard") === opt ? "selected" : ""}>${opt}</option>`).join("");
@@ -1424,8 +1426,8 @@ function doPost(e) {
                 return `
                 <div class="edit-form ${item.isEditing ? 'active' : ''}">
                     <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Note</h3>
-                    <div class="form-group"><label>Title</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value)"></div>
-                    <div class="form-group" style="flex-grow: 1;"><label>Content</label><textarea style="height:200px;" oninput="updateItem('${item.id}', 'description', this.value)">${item.description || ""}</textarea></div>
+                    <div class="form-group"><label>Title</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value, true)"></div>
+                    <div class="form-group" style="flex-grow: 1;"><label>Content</label><textarea style="height:200px;" oninput="updateItem('${item.id}', 'description', this.value, true)">${item.description || ""}</textarea></div>
                     <div class="form-row">
                         <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
                         <div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div>
@@ -1444,7 +1446,7 @@ function doPost(e) {
                  return `
                 <div class="edit-form ${item.isEditing ? 'active' : ''}">
                     <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Wealth Container</h3>
-                    <div class="form-group"><label>Container Name</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value)"></div>
+                    <div class="form-group"><label>Container Name</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value, true)"></div>
                     <div class="form-row">
                         <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
                         <div class="form-group"><label>Location</label><select onchange="updateItem('${item.id}', 'storageLocation', this.value)">${locSelectHtml}</select></div>
@@ -1463,24 +1465,24 @@ function doPost(e) {
             return `
                 <div class="edit-form ${item.isEditing ? 'active' : ''}">
                     <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit ${item.cardType}</h3>
-                    <div class="form-group"><label>Name (Public)</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value)"></div>
-                    <div class="form-group"><label>True Name (Secret)</label><input type="text" value="${getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName}" oninput="updateItem('${item.id}', 'trueName', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
+                    <div class="form-group"><label>Name (Public)</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value, true)"></div>
+                    <div class="form-group"><label>True Name (Secret)</label><input type="text" value="${getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName}" oninput="updateItem('${item.id}', 'trueName', this.value, true)" ${!isKeeper ? 'disabled' : ''}></div>
                     
                     <div class="form-row">
                         ${item.cardType === 'Item' ? `<div class="form-group"><label>Rarity</label><select onchange="updateRarity('${item.id}', this.value)" ${!isKeeper ? 'disabled' : ''}>${raritySelectHtml}</select></div>` : ''}
                         <div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div>
                     </div>
 
-                    <div class="form-group" style="flex-grow: 1;"><label>Description (Secret)</label><textarea oninput="updateItem('${item.id}', 'description', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description}</textarea></div>
+                    <div class="form-group" style="flex-grow: 1;"><label>Description (Secret)</label><textarea oninput="updateItem('${item.id}', 'description', this.value, true)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description}</textarea></div>
                     
                     ${item.cardType !== 'Quest' ? `
                     <div style="border-top: 1px dashed #e74c3c; margin-top: 5px; padding-top: 10px;">
-                        <div class="form-group"><label style="color: #e74c3c;">Identify Spell DC (Secret)</label><input type="text" placeholder="e.g., 15" value="${getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC}" oninput="updateItem('${item.id}', 'curseDetectDC', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
-                        <div class="form-group"><label style="color: #e74c3c;">Curse Details / DM Notes (Secret)</label><textarea oninput="updateItem('${item.id}', 'curseDetails', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails}</textarea></div>
+                        <div class="form-group"><label style="color: #e74c3c;">Identify Spell DC (Secret)</label><input type="text" placeholder="e.g., 15" value="${getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC}" oninput="updateItem('${item.id}', 'curseDetectDC', this.value, true)" ${!isKeeper ? 'disabled' : ''}></div>
+                        <div class="form-group"><label style="color: #e74c3c;">Curse Details / DM Notes (Secret)</label><textarea oninput="updateItem('${item.id}', 'curseDetails', this.value, true)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails}</textarea></div>
                     </div>
                     <div class="form-group"><label>Image URL</label>
                         <div style="display:flex; gap: 10px;">
-                            <input type="text" value="${item.imageUrl}" placeholder="URL..." oninput="updateItem('${item.id}', 'imageUrl', this.value)" style="flex-grow:1; margin:0;">
+                            <input type="text" value="${item.imageUrl}" placeholder="URL..." oninput="updateItem('${item.id}', 'imageUrl', this.value, true)" style="flex-grow:1; margin:0;">
                             <label class="add-btn" style="cursor:pointer; display:flex; align-items:center; border-radius:4px; padding: 0 10px;">📁 Upload<input type="file" style="display:none;" accept="image/*" onchange="handleImageUpload('${item.id}', this)"></label>
                         </div>
                     </div>
@@ -1491,14 +1493,14 @@ function doPost(e) {
                         <div class="checkbox-group"><input type="checkbox" id="consumable-${item.id}" ${item.isConsumable ? 'checked' : ''} onchange="updateItem('${item.id}', 'isConsumable', this.checked)"><label for="consumable-${item.id}">Is Consumable (Deletes at 0)</label></div>
                     </div>
                     <div class="form-row" style="${item.hasQuantity ? '' : 'opacity: 0.3; pointer-events:none;'}">
-                        <div class="form-group"><label>Current Qty</label><input type="number" min="0" value="${item.quantity !== undefined ? item.quantity : 1}" oninput="updateItem('${item.id}', 'quantity', parseInt(this.value) || 0)"></div>
-                        <div class="form-group"><label>Max Qty (Optional)</label><input type="number" min="0" placeholder="e.g. 10" value="${item.maxQuantity || ''}" oninput="updateItem('${item.id}', 'maxQuantity', this.value)"></div>
+                        <div class="form-group"><label>Current Qty</label><input type="number" min="0" value="${item.quantity !== undefined ? item.quantity : 1}" oninput="updateItem('${item.id}', 'quantity', parseInt(this.value) || 0, true)"></div>
+                        <div class="form-group"><label>Max Qty (Optional)</label><input type="number" min="0" placeholder="e.g. 10" value="${item.maxQuantity || ''}" oninput="updateItem('${item.id}', 'maxQuantity', this.value, true)"></div>
                     </div>
 
                     <div class="form-row" style="border-top: 1px dashed #555; padding-top: 10px;">
                         <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
                         <div class="form-group"><label>Location</label><select onchange="updateItem('${item.id}', 'storageLocation', this.value)">${locSelectHtml}</select></div>
-                        ${item.cardType === 'Item' ? `<div class="form-group"><label>Weight</label><input type="text" value="${item.weight}" oninput="updateItem('${item.id}', 'weight', this.value)"></div>` : ''}
+                        ${item.cardType === 'Item' ? `<div class="form-group"><label>Weight</label><input type="text" value="${item.weight}" oninput="updateItem('${item.id}', 'weight', this.value, true)"></div>` : ''}
                     </div>
 
                     ${item.cardType === 'Item' ? `

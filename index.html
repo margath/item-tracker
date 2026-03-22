@@ -180,7 +180,7 @@
             .github-links { display: none !important; } 
         }
 
-/* Privacy Ribbon */
+        /* Privacy Ribbon (z-index adjusted so it sits behind the edit modal) */
         .privacy-ribbon {
             position: fixed; bottom: 0; left: 0; width: 100px; height: 100px; overflow: hidden; z-index: 5;
         }
@@ -440,10 +440,8 @@ function doPost(e) {
 
         // --- BUILD INFO START ---
         const BUILD_INFO = {
-            version: "2026.03.22.16",
-            commit: "a9ee04d89e07d36b0f1a2a066dc051b8cbe73628",
-            shortSha: "a9ee04d",
-            repo: "margath/item-tracker"
+            version: "Local Build",
+            repo: "LOCAL"
         };
         // --- BUILD INFO END ---
 
@@ -547,6 +545,15 @@ function doPost(e) {
         }
 
         window.onload = () => {
+            // Restore Session State if coming back from Privacy Policy
+            const savedUser = sessionStorage.getItem('lootTrackerUser');
+            if (savedUser) {
+                try {
+                    state.currentUser = JSON.parse(savedUser);
+                    state.isDmMode = sessionStorage.getItem('lootTrackerDmMode') === 'true';
+                } catch(e) {}
+            }
+
             const urlParams = new URLSearchParams(window.location.search);
             const joinCode = urlParams.get('j');
             
@@ -607,6 +614,8 @@ function doPost(e) {
         function saveSetup() {
             state.scriptUrl = document.getElementById('script-url-input').value.trim();
             localStorage.setItem('lootTrackerScriptUrl', state.scriptUrl);
+            sessionStorage.removeItem('lootTrackerUser');
+            sessionStorage.removeItem('lootTrackerDmMode');
             closeSetup();
             state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
             if (state.scriptUrl) { loadFromCloud(); } else { loadDemoData(); renderAll(); }
@@ -621,6 +630,8 @@ function doPost(e) {
             if(confirm("Are you sure you want to disconnect? You will return to the Demo Data.")) {
                 state.scriptUrl = "";
                 localStorage.removeItem('lootTrackerScriptUrl');
+                sessionStorage.removeItem('lootTrackerUser');
+                sessionStorage.removeItem('lootTrackerDmMode');
                 document.getElementById('script-url-input').value = "";
                 closeSetup();
                 state.items = []; state.players = []; state.currentUser = null; state.isDmMode = false;
@@ -735,17 +746,36 @@ function doPost(e) {
             const name = document.getElementById('login-name').value;
             const pin = document.getElementById('login-pin').value;
             const user = state.players.find(p => p.name === name && p.pin === pin);
-            if (user) { state.currentUser = user; state.isDmMode = asDm; closeLoginModal(); renderAll(); } 
-            else { alert("Incorrect PIN."); }
+            if (user) { 
+                state.currentUser = user; 
+                state.isDmMode = asDm; 
+                sessionStorage.setItem('lootTrackerUser', JSON.stringify(user));
+                sessionStorage.setItem('lootTrackerDmMode', asDm);
+                closeLoginModal(); 
+                renderAll(); 
+            } else { alert("Incorrect PIN."); }
         }
         function handleLogout() {
-            state.currentUser = null; state.isDmMode = false; state.items.forEach(item => item.isEditing = false); renderAll();
+            state.currentUser = null; 
+            state.isDmMode = false; 
+            sessionStorage.removeItem('lootTrackerUser');
+            sessionStorage.removeItem('lootTrackerDmMode');
+            state.items.forEach(item => item.isEditing = false); 
+            renderAll();
         }
         function toggleViewMode() {
-            if (state.isDmMode) { state.isDmMode = false; state.items.forEach(i => i.isEditing = false); renderAll(); } 
-            else {
+            if (state.isDmMode) { 
+                state.isDmMode = false; 
+                sessionStorage.setItem('lootTrackerDmMode', false);
+                state.items.forEach(i => i.isEditing = false); 
+                renderAll(); 
+            } else {
                 const pin = prompt(`Enter PIN for ${state.currentUser.name} to unlock DM View:`);
-                if (pin === state.currentUser.pin) { state.isDmMode = true; renderAll(); } else if (pin !== null) { alert("Incorrect PIN."); }
+                if (pin === state.currentUser.pin) { 
+                    state.isDmMode = true; 
+                    sessionStorage.setItem('lootTrackerDmMode', true);
+                    renderAll(); 
+                } else if (pin !== null) { alert("Incorrect PIN."); }
             }
         }
 
@@ -763,7 +793,6 @@ function doPost(e) {
             if (item) { item.owner = 'Party Stash'; item.isEquipped = false; renderAll(); triggerAutoSave(); }
         }
 
-        // --- Consumable Logic (Phantoms & Reals) ---
         function incrementQuantity(id, phantomDataStr) {
             if (String(id).startsWith('phantom-')) {
                 const data = JSON.parse(decodeURIComponent(phantomDataStr));
@@ -789,14 +818,11 @@ function doPost(e) {
             const item = state.items.find(i => String(i.id) === String(id));
             if (item && item.quantity > 0) { 
                 item.quantity--; 
-                
-                // Safely create a duplicate for the stash
                 let stashItem = JSON.parse(JSON.stringify(item));
                 stashItem.id = Date.now() + Math.floor(Math.random() * 1000);
                 stashItem.owner = 'Party Stash';
                 stashItem.quantity = 1;
                 stashItem.isEquipped = false;
-                
                 state.items.unshift(stashItem);
                 renderAll(); triggerAutoSave(); 
             }
@@ -1122,7 +1148,6 @@ function doPost(e) {
                 if (rankA !== rankB) return rankA - rankB;
                 if (a.owner !== b.owner) return a.owner.localeCompare(b.owner);
 
-                // Predefined ordering for potions to keep them cleanly grouped
                 const potionOrder = {
                     "Potion of Healing": 1,
                     "Potion of Greater Healing": 2,

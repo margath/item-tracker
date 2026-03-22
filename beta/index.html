@@ -410,9 +410,11 @@ function getOrCreateFolder() {
 
 function doGet(e) {
   try { 
-    const ss = SpreadsheetApp.getActive();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) throw new Error("Could not connect to the Google Sheet.");
+
     let s = ss.getSheetByName(SHEET_NAME); 
-    let p = ss.getSheetByName(PLAYER_SHEET);
+    let p = ss.getSheetByName(PLAYER_SHEET) || ss.getSheetByName("players") || ss.getSheetByName("Players ");
     
     let items = [];
     if (s) {
@@ -432,17 +434,26 @@ function doGet(e) {
     let players = [];
     if (p) {
       let data = p.getDataRange().getValues();
-      for(let i=1; i < data.length; i++) { 
-        if(data[i][0] && data[i][1]) {
-          players.push({
-            name: data[i][0].toString(), pin: data[i][1].toString(), character: data[i][2] ? data[i][2].toString() : ""
-          });
-        }
+      for(let i = 0; i < data.length; i++) { 
+        let name = String(data[i][0] || "").trim();
+        let pin = String(data[i][1] || "").trim();
+        let character = String(data[i][2] || "").trim();
+        
+        if (!name || !pin) continue;
+        if (name.toLowerCase() === "player name" || name.toLowerCase() === "name") continue;
+        
+        players.push({
+          name: name, 
+          pin: pin, 
+          character: character
+        });
       }
+    } else {
+        throw new Error("Could not find the 'Players' tab.");
     }
     return ContentService.createTextOutput(JSON.stringify({backendVersion: BACKEND_VERSION, items: items, players: players})).setMimeType(ContentService.MimeType.JSON);
   } catch (err) { 
-    return ContentService.createTextOutput(JSON.stringify({backendVersion: BACKEND_VERSION, items: [], players: []})).setMimeType(ContentService.MimeType.JSON); 
+    return ContentService.createTextOutput(JSON.stringify({backendVersion: BACKEND_VERSION, items: [], players: [], error: err.toString()})).setMimeType(ContentService.MimeType.JSON); 
   }
 }
 
@@ -455,8 +466,8 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ url: "https://drive.google.com/uc?id=" + file.getId() })).setMimeType(ContentService.MimeType.JSON);
     }
     if (p.action === 'saveData') {
-      let s = SpreadsheetApp.getActive().getSheetByName(SHEET_NAME); 
-      if (!s) s = SpreadsheetApp.getActive().insertSheet(SHEET_NAME);
+      let s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME); 
+      if (!s) s = SpreadsheetApp.getActiveSpreadsheet().insertSheet(SHEET_NAME);
       s.clear(); 
       if (p.data && p.data.length > 0) {
         let headers = ["id", "cardType", "apparentName", "trueName", "imageUrl", "owner", "storageLocation", "weight", "quantity", "maxQuantity", "hasQuantity", "isConsumable", "isEquipped", "requiresAttunement", "isAttuned", "isIdentified", "description", "isCurseRevealed", "curseDetectDC", "curseDetails", "secretKeeper", "cardSize", "rarity", "wealthData", "isCollapsed"];
@@ -487,7 +498,7 @@ function doPost(e) {
                 <label style="font-size: 13px; font-weight: bold; color: #fff;">Paste Your Web App URL Here:</label>
                 <input type="text" id="script-url-input" placeholder="https://script.google.com/macros/s/...">
                 <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
-                    <button style="background: #555;" onclick="closeSetup()">Close</button>
+                    <button style="background: #555;" onclick="closeModal('setup-screen')">Close</button>
                     <button class="add-btn" onclick="saveSetup()">Save & Sync</button>
                 </div>
             </div>
@@ -499,7 +510,7 @@ function doPost(e) {
                 <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                     <button onclick="copyJoinLink()" style="background: #3498db;">🔗 Copy Join Link</button>
                     <button id="btn-disconnect" style="background: #e74c3c;" onclick="confirmDisconnect()">Disconnect App</button>
-                    <button style="background: #555;" onclick="closeSetup()">Close</button>
+                    <button style="background: #555;" onclick="closeModal('setup-screen')">Close</button>
                 </div>
             </div>
         </div>
@@ -649,7 +660,7 @@ function doPost(e) {
             if(state.scriptUrl) { loadFromCloud(); } else { loadDemoData(); renderAll(); }
         };
 
-        // --- Notifications, Modals & Dropdowns ---
+        // --- Notifications & Modals ---
         function showToast(msg, type='error') {
             const toast = document.getElementById('toast-notification');
             toast.innerText = msg; toast.className = `show ${type}`;
@@ -658,7 +669,7 @@ function doPost(e) {
 
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        function getPlayerDisplayName(p) { return p ? (p.character ? `${p.name} (${p.character})` : p.name) : null; }
+        function getPlayerDisplayName(p) { return p ? (p.character ? `${p.name} (${p.character})` : p.name) : "Party Stash"; }
         function parseWeight(str, qty) { const n = parseFloat(String(str).replace(/[^\d.]/g, '')); return isNaN(n) ? 0 : n * (qty || 1); }
         function parseWealth(data) {
             if (!data) return {};
@@ -741,14 +752,30 @@ function doPost(e) {
         }
 
         // --- Setup Logic ---
-        function openSetup() { 
+        async function openSetup() { 
             document.getElementById('setup-instructions-container').style.display = state.scriptUrl ? 'none' : 'block';
             document.getElementById('toggle-instructions-btn').style.display = state.scriptUrl ? 'block' : 'none';
             document.getElementById('setup-configured-view').style.display = state.scriptUrl ? 'block' : 'none';
             document.getElementById('setup-input-view').style.display = state.scriptUrl ? 'none' : 'block';
+            
             if (state.scriptUrl) {
                 let encodedCode = btoa(state.scriptUrl.match(/\/s\/([a-zA-Z0-9_-]+)\//)?.[1] || state.scriptUrl);
                 document.getElementById('qr-code-img').src = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" + encodeURIComponent(window.location.href.split('?')[0] + "?j=" + encodedCode);
+            } else {
+                try {
+                    if (navigator.clipboard && navigator.clipboard.readText) {
+                        const text = await navigator.clipboard.readText();
+                        if (text && text.includes("script.google.com/macros/s/")) {
+                            const inputField = document.getElementById('script-url-input');
+                            if (inputField.value !== text.trim()) {
+                                inputField.value = text.trim();
+                                showToast("App Script URL found in clipboard and pasted!", "success");
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn("Clipboard access denied or unavailable.");
+                }
             }
             openModal('setup-screen');
         }
@@ -1315,183 +1342,4 @@ function doPost(e) {
                 wealthHtml = `
                     <div class="wealth-inputs" style="${canEdit ? '' : 'pointer-events:none; opacity:0.8;'}">
                         <div class="wealth-field"><label>PP</label><input type="number" min="0" value="${w.pp||0}" oninput="updateWealth('${item.id}', 'pp', this.value)"></div>
-                        <div class="wealth-field"><label>GP</label><input type="number" min="0" value="${w.gp||0}" oninput="updateWealth('${item.id}', 'gp', this.value)"></div>
-                        <div class="wealth-field"><label>EP</label><input type="number" min="0" value="${w.ep||0}" oninput="updateWealth('${item.id}', 'ep', this.value)"></div>
-                        <div class="wealth-field"><label>SP</label><input type="number" min="0" value="${w.sp||0}" oninput="updateWealth('${item.id}', 'sp', this.value)"></div>
-                        <div class="wealth-field"><label>CP</label><input type="number" min="0" value="${w.cp||0}" oninput="updateWealth('${item.id}', 'cp', this.value)"></div>
-                        <div style="width:100%; margin-top:5px;"><label style="font-size:10px; color:#aaa; font-weight:bold;">Gems & Art Objects</label><input type="text" value="${w.gems||""}" placeholder="e.g. 2x Rubies (50gp)" oninput="updateWealth('${item.id}', 'gems', this.value)" style="margin:0; font-size:12px; padding:6px;"></div>
-                    </div>
-                `;
-            }
-
-            let consumeActionsHtml = "";
-            if (item.hasQuantity && item.cardType !== 'Treasure') {
-                const canEditQty = state.isDmMode || (state.currentUser && item.owner === state.currentUser.name);
-                if (canEditQty) {
-                    consumeActionsHtml = `
-                        <div class="consume-controls">
-                            <span style="font-size:12px; color:#aaa; font-weight:bold;">QTY:</span>
-                            <button class="qty-btn minus" onclick="changeQty('${item.id}', -1)">-</button>
-                            <span style="font-size:16px; font-weight:bold; min-width:24px; text-align:center;">${item.quantity !== undefined ? item.quantity : 1}${item.maxQuantity ? '/'+item.maxQuantity : ''}</span>
-                            <button class="qty-btn plus" onclick="changeQty('${item.id}', 1)">+</button>
-                            ${(item.isConsumable && item.quantity === 0 && !state.isDmMode) ? `<button class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')" style="margin-left:auto;">🗑️ Clear Empty</button>` : ''}
-                        </div>`;
-                }
-            }
-
-            let playerActionsHtml = "";
-            if (state.currentUser && !state.isDmMode && item.cardType === 'Item') {
-                if (item.owner === "Party Stash") {
-                    playerActionsHtml = `<button onclick="takeItem('${item.id}')" style="background: #27ae60; width: 100%;">🎒 Take Item</button>`;
-                } else if (item.owner === state.currentUser.name) {
-                    if (item.requiresAttunement) playerActionsHtml += `<button onclick="toggleProp('${item.id}', 'isAttuned')" style="background: ${item.isAttuned ? '#8e44ad' : '#9b59b6'}; flex:1;">${item.isAttuned ? '🔗 Break Attunement' : '🔗 Attune'}</button>`;
-                    playerActionsHtml += `<button onclick="returnItem('${item.id}')" style="background: #e67e22; flex:1;">📦 Return to Stash</button>`;
-                }
-            }
-
-            let dmActionsHtml = "";
-            if (state.isDmMode) {
-                if (item.cardType === 'Quest') {
-                    dmActionsHtml = `<button onclick="toggleProp('${item.id}', 'isCollapsed')" style="background:#34495e; flex:1;">Collapse Quest</button>`;
-                } else if (item.cardType !== 'Note' && item.cardType !== 'Treasure') {
-                    dmActionsHtml = `<button onclick="toggleIdentified('${item.id}')" style="background: ${item.isIdentified ? '#f39c12' : '#2ecc71'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isIdentified ? 'Mark Unidentified' : 'Mark Identified'}</button>`;
-                    if (hasCurse) dmActionsHtml += `<button onclick="toggleCurse('${item.id}')" style="background: ${item.isCurseRevealed ? '#c0392b' : '#34495e'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isCurseRevealed ? 'Hide Curse' : 'Reveal Curse'}</button>`;
-                }
-                dmActionsHtml += `<button onclick="toggleEdit('${item.id}')" style="flex: 1;">Edit ${item.cardType}</button>`;
-            } else if (item.owner === state.currentUser?.name || item.cardType === 'Note') {
-                dmActionsHtml = `<button onclick="toggleEdit('${item.id}')" style="flex: 1; background:#555;">Edit Details</button>`;
-            }
-
-            const printSelectHtml = `<input type="checkbox" class="print-checkbox" title="Select for Printing">`;
-
-            card.innerHTML = `
-                ${printSelectHtml}
-                ${imgHtml ? `<div class="image-container">${imgHtml}</div>` : ''}
-                <div class="card-content">
-                    <div><h3 class="item-title">${titleToShow}</h3>${subtitleHtml}</div>
-                    <div class="badges">${badgesHtml}</div>
-                    ${wealthHtml}
-                    ${descHtml ? `<div class="description-box">${descHtml}</div>` : ''}
-                    ${curseHtml}
-                    ${consumeActionsHtml}
-                    ${playerActionsHtml ? `<div class="card-actions" style="border-top: none; padding-top: 0;">${playerActionsHtml}</div>` : ''}
-                    ${dmActionsHtml ? `<div class="card-actions">${dmActionsHtml}</div>` : ''}
-                </div>
-                ${createEditForm(item)}
-            `;
-            return card;
-        }
-
-        // --- Edit Form Builder ---
-        function createEditForm(item) {
-            const isKeeper = state.isDmMode && state.currentUser && (item.secretKeeper === "Shared" || state.currentUser.name === item.secretKeeper);
-            const rosterOptionsHtml = ["Party Stash", "DM Stash", ...state.players.map(p => p.name)].map(val => `<option value="${val}" ${item.owner === val ? "selected" : ""}>${getPlayerDisplayName(state.players.find(p=>p.name===val)) || val}</option>`).join("");
-            const raritySelectHtml = RARITY_OPTIONS.map(opt => `<option value="${opt}" ${item.rarity === opt ? "selected" : ""}>${opt}</option>`).join("");
-            const sizeSelectHtml = CARD_SIZES.map(opt => `<option value="${opt}" ${(item.cardSize || "Standard") === opt ? "selected" : ""}>${opt}</option>`).join("");
-            const locSelectHtml = STORAGE_LOCATIONS.map(opt => `<option value="${opt}" ${(item.storageLocation || "Backpack") === opt ? "selected" : ""}>${opt}</option>`).join("");
-
-            let shareBtn = item.secretKeeper === "Shared" ? `<div style="font-size:12px; color:#2ecc71; text-align:center; width:100%; padding: 10px 0; border-top: 1px dashed #444; margin-top: 10px;">🔓 Shared with all DMs</div>` 
-                : (isKeeper ? `<div style="border-top: 1px dashed #444; margin-top: 10px; padding-top: 10px; width: 100%;"><button onclick="makeShared('${item.id}')" style="background: #9b59b6; width: 100%;">🔓 Allow All DMs to Edit</button></div>` : '');
-
-            if (item.cardType === 'Note') {
-                return `
-                <div class="edit-form ${item.isEditing ? 'active' : ''}">
-                    <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Note</h3>
-                    <div class="form-group"><label>Title</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value)"></div>
-                    <div class="form-group" style="flex-grow: 1;"><label>Content</label><textarea style="height:200px;" oninput="updateItem('${item.id}', 'description', this.value)">${item.description || ""}</textarea></div>
-                    <div class="form-row">
-                        <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
-                        <div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div>
-                    </div>
-                    <div class="card-actions" style="margin-top: 10px;">
-                        <button type="button" class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')">Delete</button>
-                        <div style="display:flex; gap:10px;">
-                            <button type="button" class="del-btn" id="discard-btn-${item.id}" onclick="confirmDiscard('${item.id}')" style="background:#7f8c8d;">Discard</button>
-                            <button type="button" class="add-btn" onclick="toggleEdit('${item.id}')">Done</button>
-                        </div>
-                    </div>
-                </div>`;
-            }
-
-            if (item.cardType === 'Treasure') {
-                 return `
-                <div class="edit-form ${item.isEditing ? 'active' : ''}">
-                    <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Wealth Container</h3>
-                    <div class="form-group"><label>Container Name</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value)"></div>
-                    <div class="form-row">
-                        <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
-                        <div class="form-group"><label>Location</label><select onchange="updateItem('${item.id}', 'storageLocation', this.value)">${locSelectHtml}</select></div>
-                    </div>
-                    <div class="form-row"><div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div></div>
-                    <div class="card-actions" style="margin-top: 10px;">
-                        <button type="button" class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')">Delete</button>
-                        <div style="display:flex; gap:10px;">
-                            <button type="button" class="del-btn" id="discard-btn-${item.id}" onclick="confirmDiscard('${item.id}')" style="background:#7f8c8d;">Discard</button>
-                            <button type="button" class="add-btn" onclick="toggleEdit('${item.id}')">Done</button>
-                        </div>
-                    </div>
-                </div>`;
-            }
-
-            return `
-                <div class="edit-form ${item.isEditing ? 'active' : ''}">
-                    <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit ${item.cardType}</h3>
-                    <div class="form-group"><label>Name (Public)</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value)"></div>
-                    <div class="form-group"><label>True Name (Secret)</label><input type="text" value="${getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName}" oninput="updateItem('${item.id}', 'trueName', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
-                    
-                    <div class="form-row">
-                        ${item.cardType === 'Item' ? `<div class="form-group"><label>Rarity</label><select onchange="updateRarity('${item.id}', this.value)" ${!isKeeper ? 'disabled' : ''}>${raritySelectHtml}</select></div>` : ''}
-                        <div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div>
-                    </div>
-
-                    <div class="form-group" style="flex-grow: 1;"><label>Description (Secret)</label><textarea oninput="updateItem('${item.id}', 'description', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description}</textarea></div>
-                    
-                    ${item.cardType !== 'Quest' ? `
-                    <div style="border-top: 1px dashed #e74c3c; margin-top: 5px; padding-top: 10px;">
-                        <div class="form-group"><label style="color: #e74c3c;">Identify Spell DC (Secret)</label><input type="text" placeholder="e.g., 15" value="${getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC}" oninput="updateItem('${item.id}', 'curseDetectDC', this.value)" ${!isKeeper ? 'disabled' : ''}></div>
-                        <div class="form-group"><label style="color: #e74c3c;">Curse Details / DM Notes (Secret)</label><textarea oninput="updateItem('${item.id}', 'curseDetails', this.value)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails}</textarea></div>
-                    </div>
-                    <div class="form-group"><label>Image URL</label>
-                        <div style="display:flex; gap: 10px;">
-                            <input type="text" value="${item.imageUrl}" placeholder="URL..." oninput="updateItem('${item.id}', 'imageUrl', this.value)" style="flex-grow:1; margin:0;">
-                            <label class="add-btn" style="cursor:pointer; display:flex; align-items:center; border-radius:4px; padding: 0 10px;">📁 Upload<input type="file" style="display:none;" accept="image/*" onchange="handleImageUpload('${item.id}', this)"></label>
-                        </div>
-                    </div>
-                    ` : ''}
-
-                    <div class="form-row" style="margin-top: 10px; flex-wrap:wrap; border-top: 1px dashed #555; padding-top: 10px;">
-                        <div class="checkbox-group"><input type="checkbox" id="hasQty-${item.id}" ${item.hasQuantity ? 'checked' : ''} onchange="updateItem('${item.id}', 'hasQuantity', this.checked)"><label for="hasQty-${item.id}">Has Qty/Charges</label></div>
-                        <div class="checkbox-group"><input type="checkbox" id="consumable-${item.id}" ${item.isConsumable ? 'checked' : ''} onchange="updateItem('${item.id}', 'isConsumable', this.checked)"><label for="consumable-${item.id}">Is Consumable (Deletes at 0)</label></div>
-                    </div>
-                    <div class="form-row" style="${item.hasQuantity ? '' : 'opacity: 0.3; pointer-events:none;'}">
-                        <div class="form-group"><label>Current Qty</label><input type="number" min="0" value="${item.quantity !== undefined ? item.quantity : 1}" oninput="updateItem('${item.id}', 'quantity', parseInt(this.value) || 0)"></div>
-                        <div class="form-group"><label>Max Qty (Optional)</label><input type="number" min="0" placeholder="e.g. 10" value="${item.maxQuantity || ''}" oninput="updateItem('${item.id}', 'maxQuantity', this.value)"></div>
-                    </div>
-
-                    <div class="form-row" style="border-top: 1px dashed #555; padding-top: 10px;">
-                        <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
-                        <div class="form-group"><label>Location</label><select onchange="updateItem('${item.id}', 'storageLocation', this.value)">${locSelectHtml}</select></div>
-                        ${item.cardType === 'Item' ? `<div class="form-group"><label>Weight</label><input type="text" value="${item.weight}" oninput="updateItem('${item.id}', 'weight', this.value)"></div>` : ''}
-                    </div>
-
-                    ${item.cardType === 'Item' ? `
-                    <div class="form-row" style="margin-top: 10px; flex-wrap:wrap;">
-                        <div class="checkbox-group"><input type="checkbox" id="reqatt-${item.id}" ${item.requiresAttunement ? 'checked' : ''} onchange="updateItem('${item.id}', 'requiresAttunement', this.checked)"><label for="reqatt-${item.id}">Req. Attunement</label></div>
-                        <div class="checkbox-group"><input type="checkbox" id="attune-${item.id}" ${item.isAttuned ? 'checked' : ''} onchange="updateItem('${item.id}', 'isAttuned', this.checked)"><label for="attune-${item.id}">Is Attuned</label></div>
-                    </div>` : ''}
-                    
-                    ${shareBtn}
-                    
-                    <div class="card-actions" style="margin-top: 10px;">
-                        <button type="button" class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')" ${!isKeeper && item.secretKeeper !== "Shared" ? 'disabled' : ''}>Delete</button>
-                        <div style="display:flex; gap:10px;">
-                            <button type="button" class="del-btn" id="discard-btn-${item.id}" onclick="confirmDiscard('${item.id}')" style="background:#7f8c8d;">Discard</button>
-                            <button type="button" class="add-btn" onclick="toggleEdit('${item.id}')">Done</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-    </script>
-</body>
-</html>
+                        <div class="

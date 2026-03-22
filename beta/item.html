@@ -77,7 +77,7 @@
         .view-toggles button { background: #34495e; padding: 6px 10px; font-size: 12px; border-radius: 4px; }
         .view-toggles button.active { background: #3498db; }
 
-        /* Buttons */
+        /* Buttons & Dropdowns */
         button {
             background: #3498db; color: white; border: none; padding: 8px 12px; 
             border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;
@@ -91,12 +91,25 @@
         button.srd-btn:hover:not(:disabled) { background: #8e44ad; }
         button.del-btn { background: #e74c3c; padding: 6px 10px; font-size: 12px;}
         button.del-btn:hover:not(:disabled) { background: #c0392b; }
-        
         button.setup-btn { background: #7f8c8d; }
         button.setup-btn.configured { background: #27ae60; }
-        
         .dm-toggle-btn { background: #34495e; display: flex; align-items: center; gap: 6px; }
         .potion-btn { background: #c0392b; font-size: 11px; padding: 6px 10px; }
+
+        /* Add Menu Dropdown Styles */
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-content {
+            display: none; position: absolute; right: 0; top: 100%; background-color: #2a2a35;
+            min-width: 220px; box-shadow: 0px 8px 16px rgba(0,0,0,0.6); z-index: 200;
+            border: 1px solid #555; border-radius: 6px; overflow: hidden; margin-top: 8px;
+        }
+        .dropdown-content.show { display: flex; flex-direction: column; }
+        .dropdown-content a {
+            color: white; padding: 12px 16px; text-decoration: none; display: block;
+            font-size: 13px; font-weight: bold; border-bottom: 1px solid #333; transition: background 0.2s;
+        }
+        .dropdown-content a:hover { background-color: #34495e; }
+        .dropdown-content a:last-child { border-bottom: none; }
 
         /* Main Grid */
         main.grid-view {
@@ -206,7 +219,6 @@
         .wealth-field { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 40px; }
         .wealth-field label { font-size: 10px; font-weight: bold; color: #aaa; }
         .wealth-field input { width: 100%; padding: 4px; text-align: center; font-size: 14px; margin: 2px 0; background: #2a2a35; border: 1px solid #444;}
-        .wealth-total { width: 100%; text-align: center; font-size: 14px; color: #f1c40f; margin-top: 5px; font-weight: bold;}
 
         /* Consumable Controls */
         .consume-controls {
@@ -258,15 +270,13 @@
             body { background: white !important; color: black !important; }
             header, .dm-toolbar, .search-bar-container, .modal-overlay { display: none !important; }
             
-            /* Only show selected cards in print mode */
             main.grid-view { display: block; padding: 0; }
             .loot-card { 
-                display: none; /* Hide all by default */
+                display: none; 
                 page-break-inside: avoid; break-inside: avoid;
                 background: white; border: 2px solid #000; box-shadow: none; color: black;
                 margin-bottom: 20mm; width: 100%; outline: none !important;
             }
-            /* Show only checked */
             .loot-card:has(.print-checkbox:checked) { display: flex; }
             
             .loot-card * { color: black !important; border-color: #000 !important; }
@@ -306,20 +316,6 @@
                 <button class="add-btn" onclick="submitLogin(false)">👤 Enter as Player</button>
                 <button class="srd-btn" onclick="submitLogin(true)">🔒 Unlock DM View</button>
                 <button style="background: #555; margin-top: 5px;" onclick="closeModal('login-modal')">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="add-menu-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-box" style="text-align: center; width: 300px;">
-            <h2>Create New...</h2>
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                <button class="add-btn" onclick="addNewCard('Item')">🗡️ Standard Item</button>
-                <button style="background: #f1c40f; color: black;" onclick="addNewCard('Treasure')">💎 Treasure / Wealth</button>
-                <button style="background: #8e44ad;" onclick="addNewCard('Transcription')">📜 Transcription Supplies</button>
-                <button style="background: #95a5a6;" onclick="addNewCard('Note')">📝 Note / Clue</button>
-                <button id="add-quest-btn" style="background: #3498db; display: none;" onclick="addNewCard('Quest')">🗺️ Quest (DM Only)</button>
-                <button style="background: #555; margin-top: 10px;" onclick="closeModal('add-menu-modal')">Cancel</button>
             </div>
         </div>
     </div>
@@ -501,7 +497,17 @@ function doPost(e) {
                 </div>
 
                 <button id="srd-btn-header" class="srd-btn" style="display: none;" onclick="openModal('srd-modal')">📖 SRD</button>
-                <button id="add-btn-header" class="add-btn" style="display: none;" onclick="openModal('add-menu-modal')">+ Add New...</button>
+                
+                <div class="dropdown" id="add-dropdown-container" style="display: none;">
+                    <button class="add-btn" onclick="toggleDropdown(event, 'add-menu-dropdown')">+ Add New... ▼</button>
+                    <div id="add-menu-dropdown" class="dropdown-content">
+                        <a href="#" onclick="addNewCard('Item'); return false;">🗡️ Standard Item</a>
+                        <a href="#" onclick="addNewCard('Treasure'); return false;" style="color: #f1c40f;">💎 Treasure / Wealth</a>
+                        <a href="#" onclick="addNewCard('Transcription'); return false;" style="color: #9b59b6;">📜 Transcription Supplies</a>
+                        <a href="#" onclick="addNewCard('Note'); return false;" style="color: #95a5a6;">📝 Note / Clue</a>
+                        <a href="#" id="add-quest-dropdown" onclick="addNewCard('Quest'); return false;" style="color: #3498db; display: none;">🗺️ Quest (DM Only)</a>
+                    </div>
+                </div>
                 
                 <button id="switch-mode-btn" style="display: none; background: #9b59b6;" onclick="switchRole()">👁️ DM View</button>
                 <button id="login-btn-header" class="dm-toggle-btn" onclick="openModal('login-modal')">👤 Log In</button>
@@ -620,11 +626,28 @@ function doPost(e) {
             if(state.scriptUrl) { loadFromCloud(); } else { loadDemoData(); renderAll(); }
         };
 
-        // --- Modals & Utilities ---
+        // --- Modals, Dropdowns & Utilities ---
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         function getPlayerDisplayName(p) { return p ? (p.character ? `${p.name} (${p.character})` : p.name) : "Party Stash"; }
         function parseWeight(str, qty) { const n = parseFloat(String(str).replace(/[^\d.]/g, '')); return isNaN(n) ? 0 : n * (qty || 1); }
+
+        function toggleDropdown(event, id) {
+            event.stopPropagation(); // Prevents the window.onclick from instantly closing it
+            document.getElementById(id).classList.toggle("show");
+        }
+
+        // Close CSS dropdowns if the user clicks outside
+        window.onclick = function(event) {
+            if (!event.target.matches('.dropdown-content') && !event.target.closest('.dropdown-content')) {
+                var dropdowns = document.getElementsByClassName("dropdown-content");
+                for (var i = 0; i < dropdowns.length; i++) {
+                    if (dropdowns[i].classList.contains('show')) {
+                        dropdowns[i].classList.remove('show');
+                    }
+                }
+            }
+        }
 
         async function fetchLiveGitHubInfo() {
             if (GITHUB_REPO === "YOUR_USERNAME/YOUR_REPO" || BUILD_INFO.repo !== "LOCAL") return;
@@ -844,7 +867,10 @@ function doPost(e) {
         // --- Card Actions ---
         function addNewCard(type) {
             if (type === 'Quest' && !state.isDmMode) return;
-            closeModal('add-menu-modal');
+            
+            // Ensure the dropdown closes visually after clicking
+            const d = document.getElementById('add-menu-dropdown');
+            if(d) d.classList.remove('show');
             
             let newItem = {
                 id: Date.now(), cardType: type, apparentName: `New ${type}`, trueName: "", quantity: 1, maxQuantity: "",
@@ -981,8 +1007,8 @@ function doPost(e) {
                 document.getElementById('user-info-display').style.display = 'block';
                 document.getElementById('display-user-name').innerText = `${getPlayerDisplayName(state.currentUser)} (${state.isDmMode ? 'DM' : 'Player'})`;
                 
-                document.getElementById('add-btn-header').style.display = 'block';
-                document.getElementById('add-quest-btn').style.display = state.isDmMode ? 'block' : 'none';
+                document.getElementById('add-dropdown-container').style.display = 'inline-block';
+                document.getElementById('add-quest-dropdown').style.display = state.isDmMode ? 'block' : 'none';
                 document.getElementById('switch-mode-btn').style.display = 'block';
                 document.getElementById('switch-mode-btn').innerHTML = state.isDmMode ? '👤 Player View' : '👁️ DM View';
                 document.getElementById('switch-mode-btn').style.background = state.isDmMode ? '#e67e22' : '#9b59b6';
@@ -990,7 +1016,7 @@ function doPost(e) {
                 document.getElementById('srd-btn-header').style.display = state.isDmMode ? 'block' : 'none';
             } else {
                 document.getElementById('login-btn-header').style.display = 'block';
-                ['logout-btn-header', 'user-info-display', 'add-btn-header', 'switch-mode-btn', 'dm-toolbar', 'srd-btn-header'].forEach(id => document.getElementById(id).style.display = 'none');
+                ['logout-btn-header', 'user-info-display', 'add-dropdown-container', 'switch-mode-btn', 'dm-toolbar', 'srd-btn-header'].forEach(id => document.getElementById(id).style.display = 'none');
             }
 
             // Ensure every player has a Treasure card (runs in both Demo and Live mode)

@@ -535,7 +535,7 @@ function doPost(e) {
                 <div class="dropdown" id="add-dropdown-container" style="display: none;">
                     <button class="add-btn" onclick="toggleDropdown(event, 'add-menu-dropdown')">+ Add New... ▼</button>
                     <div id="add-menu-dropdown" class="dropdown-content">
-                        <a href="#" id="dropdown-srd" onclick="openModal('srd-modal'); return false;" style="color: #2ecc71;">📖 SRD Magic Item</a>
+                        <a href="#" id="dropdown-srd" onclick="document.getElementById('srd-search-input').value=''; renderSrdList(); openModal('srd-modal'); return false;" style="color: #2ecc71;">📖 SRD Magic Item</a>
                         <a href="#" onclick="addNewCard('Item'); return false;">🗡️ Standard Item</a>
                         <a href="#" onclick="addNewCard('Treasure'); return false;" style="color: #f1c40f;">💎 Treasure / Wealth</a>
                         <a href="#" onclick="addNewCard('Transcription'); return false;" style="color: #9b59b6;">📜 Transcription Supplies</a>
@@ -545,7 +545,7 @@ function doPost(e) {
                 </div>
                 
                 <button id="switch-mode-btn" style="display: none; background: #9b59b6;" onclick="switchRole()">👁️ DM View</button>
-                <button id="login-btn-header" class="dm-toggle-btn" onclick="openModal('login-modal')">👤 Log In</button>
+                <button id="login-btn-header" class="dm-toggle-btn" onclick="openLoginModal()">👤 Log In</button>
                 <button id="live-sync-btn" style="background: #555;" onclick="toggleLiveSync()">🔄 Live Sync: OFF</button>
                 <button id="logout-btn-header" style="background: #555; display: none;" onclick="handleLogout()">Logout</button>
                 <button class="setup-btn" id="setup-btn-header" onclick="openSetup()">⚙️ Setup</button>

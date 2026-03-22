@@ -1,0 +1,42 @@
+name: Promote Beta to Live Release
+
+on:
+  workflow_dispatch: # This creates the manual "Run workflow" button in GitHub
+
+permissions:
+  contents: write 
+
+jobs:
+  promote-beta:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Copy Beta to Live
+        run: |
+          # 1. Overwrite the live index.html with the beta version
+          cp beta/index.html index.html
+
+          # 2. Configure Git Bot
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 3. Commit the promotion to the main branch
+          git add index.html
+          git diff --quiet && git diff --staged --quiet || git commit -m "🚀 deploy: promote /beta/index.html to live [skip ci]"
+          git push origin main
+          
+      - name: Generate Live Release Tag
+        run: |
+          # 4. Generate the CalVer tag
+          VERSION="$(date -u +'%Y.%m.%d').${{ github.run_number }}"
+          NEW_TAG="v${VERSION}"
+          
+          # 5. Safely push the tag to trigger the live-fetching API
+          if git ls-remote --tags origin | grep -q "refs/tags/$NEW_TAG"; then
+            echo "Tag $NEW_TAG already exists."
+          else
+            git tag "$NEW_TAG"
+            git push origin "$NEW_TAG"
+          fi

@@ -125,8 +125,9 @@
 
         /* Main Grid */
         main.grid-view {
-            padding: 30px; display: grid; gap: 25px; flex-grow: 1;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            padding: 30px; display: grid; gap: 20px; flex-grow: 1;
+            /* Base column is now 150px. Standard=2 cols, Mini=1 col */
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             grid-auto-flow: dense;
             align-content: start;
         }
@@ -145,6 +146,28 @@
         .loot-card.cursed { border-color: #e74c3c; }
         .loot-card.type-note { border-color: #95a5a6; background: #2c3e50; }
         .loot-card.type-quest { border-color: #3498db; background: #1f2a36; }
+        
+        /* Print Selection Checkbox */
+        .print-checkbox {
+            position: absolute; top: 10px; left: 10px; z-index: 20; display: none;
+            width: 20px; height: 20px; cursor: pointer;
+        }
+        body.print-mode-active .print-checkbox { display: block; }
+        body.print-mode-active .loot-card { outline: 2px dashed #555; }
+        body.print-mode-active .loot-card:has(.print-checkbox:checked) { outline: 3px solid #2ecc71; box-shadow: 0 0 15px rgba(46, 204, 113, 0.5); }
+
+        /* Dynamic Card Sizes */
+        .card-standard { grid-column: span 2; }
+        .card-mini { grid-column: span 1; font-size: 0.85em; }
+        .card-mini .image-container { height: 120px; }
+        .card-mini .item-title { font-size: 16px; }
+
+        @media (min-width: 700px) {
+            .card-medium { grid-column: span 4; flex-direction: row; }
+            .card-medium .image-container { width: 40%; height: auto; border-right: 1px solid #444; border-bottom: none; }
+            .card-large { grid-column: span 4; grid-row: span 2; min-height: 600px; }
+            .card-large .image-container { height: 300px; }
+        }
         
         /* Print Selection Checkbox */
         .print-checkbox {
@@ -546,9 +569,8 @@ function doPost(e) {
                 <div class="user-info" id="user-info-display" style="display: none;">Logged in as: <span id="display-user-name"></span></div>
                 
                 <div class="view-toggles">
-                    <button id="view-grid-btn" class="active" onclick="toggleViewMode('grid')">🗂️ Grid</button>
-                    <button id="view-table-btn" onclick="toggleViewMode('table')">📄 Table</button>
-                    <button id="view-print-btn" onclick="toggleViewMode('print')">🖨️ Print</button>
+                    <button id="view-toggle-btn" onclick="toggleLayout()">📄 Table View</button>
+                    <button id="view-print-btn" onclick="toggleViewMode('print')">🖨️ Print Mode</button>
                 </div>
 
                 <div class="dropdown" id="add-dropdown-container" style="display: none;">
@@ -853,10 +875,27 @@ function doPost(e) {
         }
 
         // --- View Toggles ---
+// --- View Toggles ---
+        function toggleLayout() {
+            if (state.viewMode === 'grid') {
+                toggleViewMode('table');
+                document.getElementById('view-toggle-btn').innerText = '🗂️ Card View';
+            } else {
+                toggleViewMode('grid');
+                document.getElementById('view-toggle-btn').innerText = '📄 Table View';
+            }
+        }
+
         function toggleViewMode(mode) {
             state.viewMode = mode;
             document.querySelectorAll('.view-toggles button').forEach(b => b.classList.remove('active'));
-            document.getElementById(`view-${mode}-btn`).classList.add('active');
+            
+            // Only highlight the print button if we are in print mode, otherwise highlight the layout toggle
+            if (mode === 'print') {
+                document.getElementById('view-print-btn').classList.add('active');
+            } else {
+                document.getElementById('view-toggle-btn').classList.add('active');
+            }
             
             const main = document.getElementById('loot-grid');
             main.className = mode === 'table' ? 'table-view' : 'grid-view';

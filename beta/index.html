@@ -123,12 +123,12 @@
         .dropdown-content a:hover { background-color: #34495e; }
         .dropdown-content a:last-child { border-bottom: none; }
 
-        /* Main Grid */
+        /* Main Grid (Vertical Stacking Setup) */
         main.grid-view {
             padding: 30px; display: grid; gap: 20px; flex-grow: 1;
-            /* Base column is now 150px. Standard=2 cols, Mini=1 col */
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            grid-auto-flow: dense;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            grid-auto-rows: 240px; /* Base height for all calculations */
+            grid-auto-flow: row dense; /* Packs the mini cards into empty vertical slots */
             align-content: start;
         }
         
@@ -139,7 +139,7 @@
             background: #2a2a35; border-radius: 10px; overflow: hidden;
             box-shadow: 0 6px 15px rgba(0,0,0,0.3); border: 1px solid #444;
             display: flex; flex-direction: column; position: relative;
-            transition: outline 0.2s;
+            transition: outline 0.2s; height: 100%; /* Force grid fill */
         }
         .loot-card.phantom { opacity: 0.7; border: 1px dashed #555; }
         .loot-card.identified { border-color: #f1c40f; }
@@ -156,51 +156,28 @@
         body.print-mode-active .loot-card { outline: 2px dashed #555; }
         body.print-mode-active .loot-card:has(.print-checkbox:checked) { outline: 3px solid #2ecc71; box-shadow: 0 0 15px rgba(46, 204, 113, 0.5); }
 
-        /* Dynamic Card Sizes */
-        .card-standard { grid-column: span 2; }
-        .card-mini { grid-column: span 1; font-size: 0.85em; }
-        .card-mini .image-container { height: 120px; }
+        /* Dynamic Card Sizes (Spans) */
+        .card-standard { grid-column: span 1; grid-row: span 2; } /* 500px high */
+        .card-mini { grid-column: span 1; grid-row: span 1; font-size: 0.85em; } /* 240px high */
+        .card-mini .image-container { height: 100px; }
         .card-mini .item-title { font-size: 16px; }
 
         @media (min-width: 700px) {
-            .card-medium { grid-column: span 4; flex-direction: row; }
+            .card-medium { grid-column: span 2; grid-row: span 2; flex-direction: row; }
             .card-medium .image-container { width: 40%; height: auto; border-right: 1px solid #444; border-bottom: none; }
-            .card-large { grid-column: span 4; grid-row: span 2; min-height: 600px; }
+            .card-large { grid-column: span 2; grid-row: span 3; }
             .card-large .image-container { height: 300px; }
         }
         
-        /* Print Selection Checkbox */
-        .print-checkbox {
-            position: absolute; top: 10px; left: 10px; z-index: 20; display: none;
-            width: 20px; height: 20px; cursor: pointer;
-        }
-        body.print-mode-active .print-checkbox { display: block; }
-        body.print-mode-active .loot-card { outline: 2px dashed #555; }
-        body.print-mode-active .loot-card:has(.print-checkbox:checked) { outline: 3px solid #2ecc71; box-shadow: 0 0 15px rgba(46, 204, 113, 0.5); }
-
-        /* Dynamic Card Sizes */
-        .card-standard { grid-column: span 1; }
-        .card-mini { grid-column: span 1; font-size: 0.85em; }
-        .card-mini .image-container { height: 120px; }
-        .card-mini .item-title { font-size: 16px; }
-
-        @media (min-width: 700px) {
-            .card-medium { grid-column: span 2; flex-direction: row; }
-            .card-medium .image-container { width: 40%; height: auto; border-right: 1px solid #444; border-bottom: none; }
-            .card-large { grid-column: span 2; grid-row: span 2; min-height: 600px; }
-            .card-large .image-container { height: 300px; }
-        }
-        
-        .card-half-page { grid-column: 1 / -1; min-height: 48vh; flex-direction: row; }
+        .card-half-page { grid-column: 1 / -1; grid-row: span 2; flex-direction: row; }
         .card-half-page .image-container { width: 40%; height: auto; border-right: 1px solid #444; border-bottom: none; }
-        .card-full-page { grid-column: 1 / -1; min-height: 200px; height: fit-content; }
-        .card-full-page .image-container { height: 40vh; }
+        .card-full-page { grid-column: 1 / -1; grid-row: span 4; }
+        .card-full-page .image-container { height: 300px; }
         
         /* Collapsed Quest Card */
-        .card-collapsed { grid-column: 1 / -1; flex-direction: row; height: 50px; align-items: center; padding: 0 15px; cursor: pointer; min-height: auto;}
-        .card-collapsed .image-container, .card-collapsed .description-box, .card-collapsed .badges, .card-collapsed .card-actions { display: none; }
-        .card-collapsed .card-content { padding: 0; flex-direction: row; align-items: center; justify-content: space-between; width: 100%;}
-        .card-collapsed:hover { background: #34495e; }
+        .card-collapsed { grid-column: 1 / -1; grid-row: span 1; flex-direction: row; height: 60px; align-self: start; align-items: center; padding: 0 15px; }
+        .card-collapsed .image-container, .card-collapsed .description-box, .card-collapsed .badges, .card-collapsed .card-actions, .card-collapsed .wealth-inputs, .card-collapsed .consume-controls { display: none !important; }
+        .card-collapsed .card-content { padding: 0; flex-direction: row; align-items: center; justify-content: space-between; width: 100%; overflow-y: hidden; }
 
         @media (max-width: 699px) {
             .card-medium, .card-half-page { flex-direction: column; }
@@ -211,12 +188,15 @@
             width: 100%; height: 200px; background: #111; display: flex;
             justify-content: center; align-items: center; overflow: hidden;
             border-bottom: 1px solid #444; position: relative;
-            transition: height 0.3s ease;
+            transition: height 0.3s ease; flex-shrink: 0;
         }
         .image-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
         .image-placeholder { color: #666; font-size: 14px; }
 
-        .card-content { padding: 15px; display: flex; flex-direction: column; gap: 10px; flex-grow: 1; position: relative;}
+        .card-content { padding: 15px; display: flex; flex-direction: column; gap: 10px; flex-grow: 1; position: relative; overflow-y: auto; }
+        .card-content::-webkit-scrollbar { width: 6px; }
+        .card-content::-webkit-scrollbar-thumb { background-color: #555; border-radius: 3px; }
+
         .item-title { font-size: 20px; font-weight: bold; margin: 0; color: #fff; }
         .true-name-reveal { font-size: 12px; color: #f1c40f; margin-top: -6px; font-style: italic; }
 
@@ -244,20 +224,20 @@
         }
         .curse-box {
             background: #3b1b1b; padding: 10px; border-radius: 6px;
-            font-size: 13px; line-height: 1.5; color: #ff9999; border: 1px solid #e74c3c; white-space: pre-wrap;
+            font-size: 13px; line-height: 1.5; color: #ff9999; border: 1px solid #e74c3c; flex-shrink: 0; white-space: pre-wrap;
         }
         .curse-box.hidden { border-style: dashed; border-color: #e67e22; color: #f39c12; background: #2a2015; }
         .hidden-text { color: #777; font-style: italic; text-align: center; padding: 10px 0; }
 
         /* Wealth Inputs */
-        .wealth-inputs { display: flex; gap: 5px; flex-wrap: wrap; background: #1a1a20; padding: 10px; border-radius: 6px; border: 1px solid #555; margin-bottom: 5px;}
+        .wealth-inputs { display: flex; gap: 5px; flex-wrap: wrap; background: #1a1a20; padding: 10px; border-radius: 6px; border: 1px solid #555; margin-bottom: 5px; flex-shrink: 0;}
         .wealth-field { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 40px; }
         .wealth-field label { font-size: 10px; font-weight: bold; color: #aaa; }
         .wealth-field input { width: 100%; padding: 4px; text-align: center; font-size: 14px; margin: 2px 0; background: #2a2a35; border: 1px solid #444;}
 
         /* Consumable Controls */
         .consume-controls {
-            display: flex; align-items: center; justify-content: center; gap: 10px;
+            display: flex; align-items: center; justify-content: center; gap: 10px; flex-shrink: 0;
             background: #1a1a20; padding: 8px; border-radius: 6px; border: 1px solid #555; margin-bottom: 5px;
         }
         .qty-btn { background: #555; width: 30px; height: 30px; border-radius: 50%; font-size: 18px; line-height: 1; display:flex; align-items:center; justify-content:center;}
@@ -275,7 +255,7 @@
         .form-row > div { flex: 1; }
         .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #ddd;}
         .card-actions { 
-            display: flex; justify-content: space-between; align-items: center;
+            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
             padding-top: 10px; border-top: 1px dashed #444; margin-top: auto; gap: 10px; flex-wrap: wrap;
         }
 
@@ -311,18 +291,18 @@
                 page-break-inside: avoid; break-inside: avoid;
                 background: white !important; border: 1px solid #000 !important; box-shadow: none !important; color: black !important;
                 margin-bottom: 0 !important; outline: none !important;
-                overflow: hidden; box-sizing: border-box;
+                overflow: hidden; box-sizing: border-box; height: auto !important;
             }
             .loot-card:has(.print-checkbox:checked) { display: flex; flex-direction: column; }
             
             /* Sized for physical card sleeves (2.5 x 3.5 inches) */
-            .card-standard { width: 63mm; height: 88mm; }
-            .card-mini { width: 44mm; height: 63mm; }
-            .card-medium { width: 126mm; height: 88mm; }
-            .card-large { width: 126mm; height: 176mm; }
-            .card-half-page, .card-full-page { width: 100%; height: auto; }
+            .card-standard { width: 63mm; height: 88mm !important; }
+            .card-mini { width: 44mm; height: 63mm !important; }
+            .card-medium { width: 126mm; height: 88mm !important; }
+            .card-large { width: 126mm; height: 176mm !important; }
+            .card-half-page, .card-full-page { width: 100%; height: auto !important; }
             
-            .card-content { padding: 4mm !important; gap: 2mm !important; flex-grow: 1; }
+            .card-content { padding: 4mm !important; gap: 2mm !important; flex-grow: 1; overflow-y: hidden; }
             .item-title { font-size: 11pt !important; margin: 0; line-height: 1.1; color: black !important; }
             .true-name-reveal { font-size: 8pt !important; color: #333 !important; }
             
@@ -569,7 +549,7 @@ function doPost(e) {
                 <div class="user-info" id="user-info-display" style="display: none;">Logged in as: <span id="display-user-name"></span></div>
                 
                 <div class="view-toggles">
-                    <button id="view-toggle-btn" onclick="toggleLayout()">📄 Table View</button>
+                    <button id="view-toggle-btn" class="active" onclick="toggleLayout()">📄 Table View</button>
                     <button id="view-print-btn" onclick="toggleViewMode('print')">🖨️ Print Mode</button>
                 </div>
 
@@ -875,27 +855,21 @@ function doPost(e) {
         }
 
         // --- View Toggles ---
-// --- View Toggles ---
         function toggleLayout() {
-            if (state.viewMode === 'grid') {
-                toggleViewMode('table');
-                document.getElementById('view-toggle-btn').innerText = '🗂️ Card View';
-            } else {
-                toggleViewMode('grid');
-                document.getElementById('view-toggle-btn').innerText = '📄 Table View';
-            }
+            if (state.viewMode === 'grid') { toggleViewMode('table'); } else { toggleViewMode('grid'); }
         }
 
         function toggleViewMode(mode) {
             state.viewMode = mode;
-            document.querySelectorAll('.view-toggles button').forEach(b => b.classList.remove('active'));
             
-            // Only highlight the print button if we are in print mode, otherwise highlight the layout toggle
-            if (mode === 'print') {
-                document.getElementById('view-print-btn').classList.add('active');
-            } else {
-                document.getElementById('view-toggle-btn').classList.add('active');
+            const toggleBtn = document.getElementById('view-toggle-btn');
+            const printBtn = document.getElementById('view-print-btn');
+            
+            if (toggleBtn) {
+                toggleBtn.innerHTML = state.viewMode === 'table' ? '🗂️ Card View' : '📄 Table View';
+                if (mode !== 'print') { toggleBtn.classList.add('active'); printBtn.classList.remove('active'); }
             }
+            if (mode === 'print') { printBtn.classList.add('active'); toggleBtn.classList.remove('active'); }
             
             const main = document.getElementById('loot-grid');
             main.className = mode === 'table' ? 'table-view' : 'grid-view';
@@ -1125,7 +1099,13 @@ function doPost(e) {
             }
         }
 
+        // Action Helpers
         function toggleProp(id, prop) { updateItem(id, prop, !state.items.find(i => String(i.id) === String(id))?.[prop]); }
+        function toggleIdentified(id) { toggleProp(id, 'isIdentified'); }
+        function toggleCurse(id) { toggleProp(id, 'isCurseRevealed'); }
+        function takeItem(id) { updateItem(id, 'owner', state.currentUser.name); }
+        function returnItem(id) { updateItem(id, 'owner', 'Party Stash'); updateItem(id, 'isEquipped', false); }
+
         function changeQty(id, amt) {
             const item = state.items.find(i => String(i.id) === String(id));
             if (item) updateItem(id, 'quantity', Math.max(0, (item.quantity || 0) + amt));
@@ -1235,7 +1215,7 @@ function doPost(e) {
                 ['logout-btn-header', 'user-info-display', 'add-dropdown-container', 'switch-mode-btn', 'dm-toolbar'].forEach(id => document.getElementById(id).style.display = 'none');
             }
 
-            // Ensure every player has a Treasure card (Runs for Demo & Cloud)
+            // Ensure every player has a Treasure card
             if (state.players.length > 0) {
                 state.players.forEach(p => {
                     if (p.character === 'DM' || p.name === 'Party Stash') return;
@@ -1327,9 +1307,9 @@ function doPost(e) {
             if (item.cardType === 'Quest' && item.isCollapsed) {
                 card.className = `loot-card card-collapsed type-quest`;
                 card.innerHTML = `
-                    <div class="card-content" onclick="toggleProp('${item.id}', 'isCollapsed')">
-                        <span style="font-weight:bold; color:#3498db;">🗺️ ${item.apparentName}</span>
-                        <span style="font-size:12px; color:#aaa;">Click to expand</span>
+                    <div class="card-content" onclick="toggleProp('${item.id}', 'isCollapsed')" title="Click to expand">
+                        <span style="font-weight:bold; color:#3498db; display: flex; align-items: center; gap: 8px;">🔽 ${item.apparentName}</span>
+                        <span style="font-size:12px; color:#aaa;">🗺️ Quest</span>
                     </div>
                     ${createEditForm(item)}
                 `;
@@ -1352,7 +1332,7 @@ function doPost(e) {
                 descHtml = (getDisplayText(item.description, item.secretKeeper, false) || item.description || "").replace(/\n/g, '<br>');
             } else { descHtml = "<div class='hidden-text'>Properties unknown until identified.</div>"; }
 
-            let titleHtml = `<h3 class="item-title" ${item.cardType === 'Quest' ? `onclick="toggleProp('${item.id}', 'isCollapsed')" style="cursor:pointer; color:#3498db;" title="Click to collapse"` : ''}>${item.cardType === 'Quest' ? '🔼 ' : ''}${titleToShow}</h3>`;
+            let titleHtml = `<h3 class="item-title" ${item.cardType === 'Quest' ? `onclick="toggleProp('${item.id}', 'isCollapsed')" style="cursor:pointer; color:#3498db; display: flex; align-items: center; gap: 8px;" title="Click to collapse"` : ''}>${item.cardType === 'Quest' ? '🔼 ' : ''}${titleToShow}</h3>`;
 
             // Dynamic "Yourself" vs "Others" override for Treasure Cards
             if (item.cardType === 'Treasure' && titleToShow && (titleToShow === "Personal Wealth" || titleToShow.includes("Wealth"))) {
@@ -1435,18 +1415,18 @@ function doPost(e) {
             let playerActionsHtml = "";
             if (state.currentUser && !state.isDmMode && item.cardType === 'Item') {
                 if (item.owner === "Party Stash") {
-                    playerActionsHtml = `<button onclick="updateItem('${item.id}', 'owner', state.currentUser.name)" style="background: #27ae60; width: 100%;">🎒 Take Item</button>`;
+                    playerActionsHtml = `<button onclick="takeItem('${item.id}')" style="background: #27ae60; width: 100%;">🎒 Take Item</button>`;
                 } else if (item.owner === state.currentUser.name) {
                     if (item.requiresAttunement) playerActionsHtml += `<button onclick="toggleProp('${item.id}', 'isAttuned')" style="background: ${item.isAttuned ? '#8e44ad' : '#9b59b6'}; flex:1;">${item.isAttuned ? '🔗 Break Attunement' : '🔗 Attune'}</button>`;
-                    playerActionsHtml += `<button onclick="updateItem('${item.id}', 'owner', 'Party Stash'); updateItem('${item.id}', 'isEquipped', false);" style="background: #e67e22; flex:1;">📦 Return to Stash</button>`;
+                    playerActionsHtml += `<button onclick="returnItem('${item.id}')" style="background: #e67e22; flex:1;">📦 Return to Stash</button>`;
                 }
             }
 
             let dmActionsHtml = "";
             if (state.isDmMode) {
                 if (item.cardType !== 'Quest' && item.cardType !== 'Note' && item.cardType !== 'Treasure') {
-                    dmActionsHtml = `<button onclick="toggleProp('${item.id}', 'isIdentified')" style="background: ${item.isIdentified ? '#f39c12' : '#2ecc71'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isIdentified ? 'Mark Unidentified' : 'Mark Identified'}</button>`;
-                    if (hasCurse) dmActionsHtml += `<button onclick="toggleProp('${item.id}', 'isCurseRevealed')" style="background: ${item.isCurseRevealed ? '#c0392b' : '#34495e'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isCurseRevealed ? 'Hide Curse' : 'Reveal Curse'}</button>`;
+                    dmActionsHtml = `<button onclick="toggleIdentified('${item.id}')" style="background: ${item.isIdentified ? '#f39c12' : '#2ecc71'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isIdentified ? 'Mark Unidentified' : 'Mark Identified'}</button>`;
+                    if (hasCurse) dmActionsHtml += `<button onclick="toggleCurse('${item.id}')" style="background: ${item.isCurseRevealed ? '#c0392b' : '#34495e'}; flex: 1;" ${!isKeeper ? 'disabled' : ''}>${item.isCurseRevealed ? 'Hide Curse' : 'Reveal Curse'}</button>`;
                 }
                 dmActionsHtml += `<button onclick="toggleEdit('${item.id}')" style="flex: 1;">Edit ${item.cardType}</button>`;
             } else if (item.owner === state.currentUser?.name || item.cardType === 'Note') {

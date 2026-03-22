@@ -1,5 +1,4 @@
 name: Stamp Build Version
-
 runs:
   using: 'node24'
 

@@ -769,7 +769,6 @@ function disconnectCloud() {
     loadDemoData(); renderAll();
     showToast("Disconnected from Cloud.", "success");
 }
-        }
         function copyJoinLink() {
             let encodedCode = btoa(state.scriptUrl.match(/\/s\/([a-zA-Z0-9_-]+)\//)?.[1] || state.scriptUrl);
             navigator.clipboard.writeText(window.location.href.split('?')[0] + "?j=" + encodedCode);

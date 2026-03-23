@@ -1,6 +1,4 @@
 name: Promote Beta to Live Release
-runs: 
-  using: 'node24'
 
 on:
   workflow_dispatch: # This creates the manual "Run workflow" button in GitHub

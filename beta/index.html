@@ -71,7 +71,7 @@
         /* Header Tools Link Styles */
         .header-tools-link { display: flex; align-items: center; opacity: 0.6; transition: opacity 0.2s; }
         .header-tools-link:hover { opacity: 1; }
-        .header-tools-link img { border-radius: 4px; background: white; padding: 2px; width: 30px; height: 30px; }
+        .header-tools-link svg { border-radius: 4px; background: white; padding: 2px; width: 26px; height: 26px; }
         
         .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap;}
         .user-info { font-size: 14px; color: #aaa; margin-right: 10px; }
@@ -326,11 +326,11 @@
             body { background: white !important; color: black !important; }
             header, .dm-toolbar, .search-bar-container, .modal-overlay, #toast-notification { display: none !important; }
             
+            /* Remove Headers entirely for a clean card sheet */
+            .group-header { display: none !important; }
+            .inventory-group { display: block; margin-bottom: 0 !important; }
+            
             main.grid-view { display: block !important; padding: 0; gap: 0; }
-            
-            .inventory-group { display: block; margin-bottom: 10mm; }
-            .group-header { font-size: 16pt !important; color: black !important; border-bottom: 2px solid #000; padding-bottom: 2mm; margin-bottom: 4mm; margin-top: 0; page-break-after: avoid; }
-            
             .inventory-grid { display: flex !important; flex-wrap: wrap; gap: 5mm; justify-content: flex-start; }
             
             .loot-card { 
@@ -584,8 +584,10 @@ function doPost(e) {
 
             <div style="margin-top: 20px; border-top: 1px dashed #555; padding-top: 15px; text-align: center;">
                 <p style="font-size: 12px; color: #aaa; margin-bottom: 10px;">More Tools at GamePortal:</p>
-                <a href="https://tools.gameportal.win/" target="_blank">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https%3A%2F%2Ftools.gameportal.win%2F" alt="GamePortal Tools" style="border-radius: 4px; background: white; padding: 5px; width: 80px; height: 80px;">
+                <a href="https://tools.gameportal.win/" target="_blank" style="display: inline-block;">
+                    <svg width="80" height="80" viewBox="0 0 24 24" fill="#1e1e24" xmlns="http://www.w3.org/2000/svg" style="background: white; border-radius: 4px; padding: 5px;">
+                        <path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-3 0h2v2h-2v-2zm3 3h3v2h-3v-2zm-3 0h2v2h-2v-2zm3 3h3v2h-3v-2zm-3 0h2v2h-2v-2z"/>
+                    </svg>
                 </a>
                 <p style="font-size: 11px; margin-top: 8px;"><a href="https://tools.gameportal.win/" target="_blank" style="color: #3498db; text-decoration: none;">tools.gameportal.win</a></p>
             </div>
@@ -601,7 +603,9 @@ function doPost(e) {
             <h1 id="main-page-title">
                 <div class="header-tools-link">
                     <a href="https://tools.gameportal.win/" target="_blank" title="Visit GamePortal Tools">
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=50x50&data=https%3A%2F%2Ftools.gameportal.win%2F" alt="QR">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="#3498db" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-3 0h2v2h-2v-2zm3 3h3v2h-3v-2zm-3 0h2v2h-2v-2zm3 3h3v2h-3v-2zm-3 0h2v2h-2v-2z"/>
+                        </svg>
                     </a>
                 </div>
                 Item Tracker
@@ -690,11 +694,11 @@ function doPost(e) {
             state.items = [
                 {
                     id: 1, cardType: "Quest", isIdentified: true, apparentName: "Return Home", trueName: "Return Home", isCollapsed: false,
-                    owner: "Party Stash", cardSize: "Full Page", description: "Find a portal back to the amusement park and escape the Realm of Dungeons & Dragons.", secretKeeper: "Dungeon Master", curseDetails: "The Dungeon Master constantly gives vague riddles instead of actual directions."
+                    owner: "Party Stash", cardSize: "Standard", description: "Find a portal back to the amusement park and escape the Realm of Dungeons & Dragons.", secretKeeper: "Dungeon Master", curseDetails: "", isEditing: false
                 },
                 {
                     id: 2, cardType: "Quest", isIdentified: true, apparentName: "Defeat Venger", trueName: "Defeat Venger", isCollapsed: true,
-                    owner: "Party Stash", cardSize: "Half Page", description: "Venger, the Force of Evil, seeks the magical weapons of the party to conquer the realm.", secretKeeper: "Dungeon Master", curseDetails: "Venger rides a Nightmare and has powerful spellcasting abilities."
+                    owner: "Party Stash", cardSize: "Standard", description: "Venger, the Force of Evil, seeks the magical weapons of the party to conquer the realm.", secretKeeper: "Dungeon Master", curseDetails: "", isEditing: false
                 },
                 {
                     id: 3, cardType: "Item", isIdentified: true, apparentName: "Glowing Longbow", trueName: "Energy Bow", hasQuantity: false, quantity: 1, maxQuantity: "", isConsumable: false,
@@ -721,7 +725,7 @@ function doPost(e) {
                 },
                 {
                     id: 7, cardType: "Note", isIdentified: true, apparentName: "Mysterious Map Fragment", trueName: "Mysterious Map Fragment", hasQuantity: false,
-                    imageUrl: "", weight: "-", requiresAttunement: false, isAttuned: false, isEquipped: false, storageLocation: "Pouch", owner: "Sheila", cardSize: "Half Page", rarity: "Mundane",
+                    imageUrl: "", weight: "-", requiresAttunement: false, isAttuned: false, isEquipped: false, storageLocation: "Pouch", owner: "Sheila", cardSize: "Standard", rarity: "Mundane",
                     secretKeeper: "Shared", isCurseRevealed: false, curseDetectDC: "", curseDetails: "", isEditing: false,
                     description: "A torn piece of parchment showing the path through the Bog of Sorrows. There's a warning scribbled in the margin: 'Beware the Bullywug King!'"
                 }
@@ -1099,8 +1103,8 @@ function doPost(e) {
             };
 
             if (type === 'Treasure') { newItem.apparentName = "Pouch of Wealth"; }
-            if (type === 'Note') { newItem.apparentName = "Mysterious Note"; newItem.cardSize = "Half Page"; }
-            if (type === 'Quest') { newItem.apparentName = "New Quest"; newItem.cardSize = "Full Page"; newItem.owner = "Party Stash"; }
+            if (type === 'Note') { newItem.apparentName = "Mysterious Note"; }
+            if (type === 'Quest') { newItem.apparentName = "New Quest"; newItem.owner = "Party Stash"; }
             if (type === 'Transcription') { 
                 newItem.apparentName = "Magical Ink & Paper"; newItem.hasQuantity = true; newItem.isConsumable = true; 
                 newItem.description = "Contains supplies to transcribe spells. 1 Charge = 1 Spell Level (50gp value)."; 
@@ -1467,7 +1471,7 @@ function doPost(e) {
                 if (plainDC.trim() || plainCurse.trim()) hasCurse = true;
             }
 
-            if (hasCurse) {
+            if (hasCurse && item.cardType !== 'Quest' && item.cardType !== 'Note') {
                 if (item.isCurseRevealed) curseHtml = `<div class="curse-box"><strong>💀 Curse Revealed</strong><br><em style="font-size:11px; color:#aaa;">DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
                 else if (state.isDmMode) curseHtml = `<div class="curse-box hidden"><strong>🤫 Hidden Curse (DM Only)</strong><br><em style="font-size:11px; color:#aaa;">DC: ${plainDC}</em><br>${plainCurse.replace(/\n/g, '<br>')}</div>`;
             }
@@ -1585,11 +1589,13 @@ function doPost(e) {
                 <div class="edit-form ${item.isEditing ? 'active' : ''}">
                     <h3 style="margin:0 0 10px 0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">Edit Note</h3>
                     <div class="form-group"><label>Title</label><input type="text" value="${item.apparentName}" oninput="updateItem('${item.id}', 'apparentName', this.value, true)"></div>
-                    <div class="form-group" style="flex-grow: 1;"><label>Content</label><textarea style="height:200px;" oninput="updateItem('${item.id}', 'description', this.value, true)">${item.description || ""}</textarea></div>
+                    <div class="form-group"><label>True Name (Secret)</label><input type="text" value="${getEditableText(item.trueName, item.secretKeeper, item.isIdentified) || item.trueName}" oninput="updateItem('${item.id}', 'trueName', this.value, true)" ${!isKeeper ? 'disabled' : ''}></div>
+                    <div class="form-group" style="flex-grow: 1;"><label>Content (Secret)</label><textarea style="height:150px;" oninput="updateItem('${item.id}', 'description', this.value, true)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description}</textarea></div>
                     <div class="form-row">
                         <div class="form-group"><label>Owner</label><select onchange="updateItem('${item.id}', 'owner', this.value)">${rosterOptionsHtml}</select></div>
                         <div class="form-group"><label>Card Size</label><select onchange="updateItem('${item.id}', 'cardSize', this.value)">${sizeSelectHtml}</select></div>
                     </div>
+                    ${shareBtn}
                     <div class="card-actions" style="margin-top: 10px;">
                         <button type="button" class="del-btn" id="del-btn-${item.id}" onclick="confirmDelete('${item.id}')">Delete</button>
                         <div style="display:flex; gap:10px;">
@@ -1644,11 +1650,14 @@ function doPost(e) {
 
                     <div class="form-group" style="flex-grow: 1;"><label>Description (Secret)</label><textarea oninput="updateItem('${item.id}', 'description', this.value, true)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.description, item.secretKeeper, item.isIdentified) || item.description}</textarea></div>
                     
-                    ${item.cardType !== 'Quest' ? `
+                    ${(item.cardType !== 'Quest' && item.cardType !== 'Note' && item.cardType !== 'Transcription') ? `
                     <div style="border-top: 1px dashed #e74c3c; margin-top: 5px; padding-top: 10px;">
                         <div class="form-group"><label style="color: #e74c3c;">Identify Spell DC (Secret)</label><input type="text" placeholder="e.g., 15" value="${getEditableText(item.curseDetectDC, item.secretKeeper, item.isCurseRevealed) || item.curseDetectDC}" oninput="updateItem('${item.id}', 'curseDetectDC', this.value, true)" ${!isKeeper ? 'disabled' : ''}></div>
                         <div class="form-group"><label style="color: #e74c3c;">Curse Details / DM Notes (Secret)</label><textarea oninput="updateItem('${item.id}', 'curseDetails', this.value, true)" ${!isKeeper ? 'disabled' : ''}>${getEditableText(item.curseDetails, item.secretKeeper, item.isCurseRevealed) || item.curseDetails}</textarea></div>
                     </div>
+                    ` : ''}
+                    
+                    ${item.cardType !== 'Treasure' ? `
                     <div class="form-group"><label>Image URL</label>
                         <div style="display:flex; gap: 10px;">
                             <input type="text" value="${item.imageUrl}" placeholder="URL..." oninput="updateItem('${item.id}', 'imageUrl', this.value, true)" style="flex-grow:1; margin:0;">
